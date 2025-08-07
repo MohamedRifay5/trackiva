@@ -36,6 +36,29 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
     throw UnimplementedError('initialize() has not been implemented.');
   }
 
+  /// Set MQTT configuration and user details
+  Future<void> setMqttConfigAndDetails({
+    required String broker,
+    required int port,
+    required String username,
+    required String password,
+    required String topic,
+    required String userId,
+    required int batteryLevel,
+    required String userType,
+    required String deviceId,
+    required String domain,
+    required String usernameField,
+    required String identifier,
+    required List<String> skills,
+    required String status,
+    required String name,
+    required String geofence,
+    required String emailid,
+    required String mobile,
+    required String jobId,
+  });
+
   Future<void> startTracking() {
     throw UnimplementedError('startTracking() has not been implemented.');
   }

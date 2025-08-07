@@ -1,17 +1,29 @@
 PODS:
+  - CocoaMQTT (2.1.6):
+    - CocoaMQTT/Core (= 2.1.6)
+  - CocoaMQTT/Core (2.1.6):
+    - MqttCocoaAsyncSocket (~> 1.0.8)
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
+  - MqttCocoaAsyncSocket (1.0.8)
   - nectar_tracker (0.0.1):
+    - CocoaMQTT (~> 2.1.1)
     - Flutter
   - permission_handler_apple (9.3.0):
     - Flutter
 
 DEPENDENCIES:
+  - CocoaMQTT (~> 2.1.1)
   - Flutter (from `Flutter`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - nectar_tracker (from `.symlinks/plugins/nectar_tracker/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+
+SPEC REPOS:
+  trunk:
+    - CocoaMQTT
+    - MqttCocoaAsyncSocket
 
 EXTERNAL SOURCES:
   Flutter:
@@ -24,11 +36,13 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
 
 SPEC CHECKSUMS:
+  CocoaMQTT: 1f206228b29318eabdacad0c2e4e88575922c27a
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
-  nectar_tracker: 400101c28576f3157af1bbeac5d87b42edd80d7e
+  MqttCocoaAsyncSocket: 77d3b74f76228dd5a05d1f9526eab101d415b30c
+  nectar_tracker: 1ff0e3ed7dd76c9067a676600e36e77cc26961b9
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
 
-PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
+PODFILE CHECKSUM: dcd140108042531f5c4b782146169707c49e323a
 
 COCOAPODS: 1.16.2

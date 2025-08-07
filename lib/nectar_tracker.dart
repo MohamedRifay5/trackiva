@@ -109,6 +109,50 @@ class NectarTracker {
     }
   }
 
+  Future<void> setMqttConfigAndDetails({
+    required String broker,
+    required int port,
+    required String username,
+    required String password,
+    required String topic,
+    required String userId,
+    required int batteryLevel,
+    required String userType,
+    required String deviceId,
+    required String domain,
+    required String usernameField,
+    required String identifier,
+    required List<String> skills,
+    required String status,
+    required String name,
+    required String geofence,
+    required String emailid,
+    required String mobile,
+    required String jobId,
+  }) async {
+    await NectarTrackerPlatform.instance.setMqttConfigAndDetails(
+      broker: broker,
+      port: port,
+      username: username,
+      password: password,
+      topic: topic,
+      userId: '',
+      batteryLevel: 0,
+      userType: '',
+      deviceId: '',
+      domain: '',
+      usernameField: '',
+      identifier: '',
+      skills: [],
+      status: '',
+      name: '',
+      geofence: '',
+      emailid: '',
+      mobile: '',
+      jobId: '',
+    );
+  }
+
   /// Start location tracking
   Future<bool> start() async {
     debugPrint('[NectarTracker] start() called');

@@ -2,11 +2,13 @@ import Flutter
 import UIKit
 import CoreLocation
 import UserNotifications
+import CocoaMQTT
 
-public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate {
+public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate, CocoaMQTTDelegate {
     private static let CHANNEL_NAME = "nectar_tracker"
     private static let EVENT_CHANNEL_NAME = "nectar_tracker/updates"
     
+    private var mqttClient: CocoaMQTT?
     private var eventSink: FlutterEventSink?
     private var locationManager: CLLocationManager?
     private var locationData: [String: Any] = [:]
@@ -32,6 +34,29 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     private var distanceFilter: Double = 10.0
     private var interval: TimeInterval = 5.0
     
+    // MQTT config
+    private var mqttBroker: String = "broker.hivemq.com"
+    private var mqttPort: Int = 1883
+    private var mqttUsername: String = ""
+    private var mqttPassword: String = ""
+    private var mqttTopic: String = "nectar/location"
+    
+    // User/device/job info
+    private var userId: String = ""
+    private var batteryLevel: Int = 0
+    private var userType: String = ""
+    private var deviceId: String = ""
+    private var domain: String = ""
+    private var usernameField: String = ""
+    private var identifier: String = ""
+    private var skills: [Any] = []
+    private var status: String = ""
+    private var name: String = ""
+    private var geofence: String = ""
+    private var emailid: String = ""
+    private var mobile: String = ""
+    private var jobId: String = ""
+    
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = NectarTrackerPlugin()
         
@@ -42,6 +67,20 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         eventChannel.setStreamHandler(instance)
     }
     
+    override init() {
+        super.init()
+        setupMqttClient()
+    }
+    
+    private func setupMqttClient() {
+        mqttClient = CocoaMQTT(clientID: "nectar_ios_\(UUID().uuidString)", host: mqttBroker, port: UInt16(mqttPort))
+        mqttClient?.username = mqttUsername
+        mqttClient?.password = mqttPassword
+        mqttClient?.delegate = self
+        mqttClient?.autoReconnect = true
+        mqttClient?.logLevel = enableLogging ? .debug : .off
+    }
+    
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "initialize":
@@ -50,7 +89,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                 return
             }
             
-            // Get settings
             enableLogging = args["enableLogging"] as? Bool ?? true
             showLocationNotifications = args["showLocationNotifications"] as? Bool ?? false
             enableBackgroundMode = args["enableBackgroundMode"] as? Bool ?? true
@@ -62,14 +100,12 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                 print("NectarTracker: Initializing with logging enabled")
             }
             
-            // Initialize location manager
             locationManager = CLLocationManager()
             locationManager?.delegate = self
             locationManager?.allowsBackgroundLocationUpdates = enableBackgroundMode
             locationManager?.pausesLocationUpdatesAutomatically = false
             locationManager?.showsBackgroundLocationIndicator = true
             
-            // Configure accuracy based on settings
             if enableHighAccuracy {
                 locationManager?.desiredAccuracy = kCLLocationAccuracyBest
                 currentAccuracy = "high"
@@ -79,11 +115,8 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             }
             
             locationManager?.distanceFilter = distanceFilter
-            
-            // Request permissions
             locationManager?.requestAlwaysAuthorization()
             
-            // Configure notification
             if #available(iOS 10.0, *) {
                 let center = UNUserNotificationCenter.current()
                 center.requestAuthorization(options: [.alert, .sound]) { granted, error in
@@ -110,17 +143,13 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             }
             
             isTracking = true
-            
-            // Start location updates
             locationManager?.startUpdatingLocation()
-            
-            // Start significant location changes for background tracking
             if #available(iOS 9.0, *) {
                 locationManager?.startMonitoringSignificantLocationChanges()
             }
             
-            // Start background task
             startBackgroundTask()
+            mqttClient?.connect()
             
             if enableLogging {
                 print("NectarTracker: Location tracking started successfully")
@@ -135,12 +164,12 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             
             isTracking = false
             locationManager?.stopUpdatingLocation()
-            
             if #available(iOS 9.0, *) {
                 locationManager?.stopMonitoringSignificantLocationChanges()
             }
             
             endBackgroundTask()
+            mqttClient?.disconnect()
             
             if enableLogging {
                 print("NectarTracker: Location tracking stopped successfully")
@@ -253,8 +282,116 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         case "getPlatformVersion":
             result("iOS " + UIDevice.current.systemVersion)
             
+        case "setTrackingDetails":
+            guard let args = call.arguments as? [String: Any] else {
+                result(FlutterError(code: "INVALID_ARGUMENTS", message: "Invalid arguments", details: nil))
+                return
+            }
+            userId = args["userId"] as? String ?? ""
+            batteryLevel = args["batteryLevel"] as? Int ?? 0
+            userType = args["userType"] as? String ?? ""
+            deviceId = args["deviceId"] as? String ?? ""
+            domain = args["domain"] as? String ?? ""
+            usernameField = args["username"] as? String ?? ""
+            identifier = args["identifier"] as? String ?? ""
+            skills = args["skills"] as? [Any] ?? []
+            status = args["status"] as? String ?? ""
+            name = args["name"] as? String ?? ""
+            geofence = args["geofence"] as? String ?? ""
+            emailid = args["emailid"] as? String ?? ""
+            mobile = args["mobile"] as? String ?? ""
+            jobId = args["jobId"] as? String ?? ""
+            result(nil)
+            
+        case "setMqttConfigAndDetails":
+            guard let args = call.arguments as? [String: Any] else {
+                result(FlutterError(code: "INVALID_ARGUMENTS", message: "Invalid arguments", details: nil))
+                return
+            }
+            mqttBroker = args["broker"] as? String ?? mqttBroker
+            mqttPort = args["port"] as? Int ?? mqttPort
+            mqttUsername = args["username"] as? String ?? mqttUsername
+            mqttPassword = args["password"] as? String ?? mqttPassword
+            mqttTopic = args["topic"] as? String ?? mqttTopic
+            userId = args["userId"] as? String ?? userId
+            batteryLevel = args["batteryLevel"] as? Int ?? batteryLevel
+            userType = args["userType"] as? String ?? userType
+            deviceId = args["deviceId"] as? String ?? deviceId
+            domain = args["domain"] as? String ?? domain
+            usernameField = args["username"] as? String ?? usernameField
+            identifier = args["identifier"] as? String ?? identifier
+            skills = args["skills"] as? [Any] ?? skills
+            status = args["status"] as? String ?? status
+            name = args["name"] as? String ?? name
+            geofence = args["geofence"] as? String ?? geofence
+            emailid = args["emailid"] as? String ?? emailid
+            mobile = args["mobile"] as? String ?? mobile
+            jobId = args["jobId"] as? String ?? jobId
+            
+            mqttClient?.disconnect()
+            setupMqttClient()
+            if isTracking {
+                mqttClient?.connect()
+            }
+            
+            if enableLogging {
+                print("NectarTracker: MQTT config updated - Broker: \(mqttBroker), Topic: \(mqttTopic)")
+            }
+            
+            result(nil)
+            
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+    
+    // MARK: - CocoaMQTTDelegate
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
+        if enableLogging {
+            print("NectarTracker: MQTT connected with ACK: \(ack.rawValue)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didPublishMessage message: CocoaMQTTMessage, id: UInt16) {
+        if enableLogging {
+            print("NectarTracker: Message published - ID: \(id), Topic: \(message.topic)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16) {
+        if enableLogging {
+            print("NectarTracker: Received message - ID: \(id), Topic: \(message.topic), Payload: \(message.string ?? "")")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics topics: [String]) {
+        if enableLogging {
+            print("NectarTracker: Subscribed to topics: \(topics)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopics topics: [String]) {
+        if enableLogging {
+            print("NectarTracker: Unsubscribed from topics: \(topics)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didReceivePong: CocoaMQTT) {
+        if enableLogging {
+            print("NectarTracker: MQTT pong received")
+        }
+    }
+    
+    @objc public func mqttDidPing(_ mqtt: CocoaMQTT) {
+        if enableLogging {
+            print("NectarTracker: MQTT ping sent")
+        }
+    }
+    
+    @objc public func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
+        if enableLogging {
+            print("NectarTracker: MQTT disconnected with error: \(err?.localizedDescription ?? "No error")")
         }
     }
     
@@ -292,7 +429,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
         lastLocationTime = location.timestamp
         
-        // Calculate distance
         if let last = lastLocation {
             let distance = last.distance(from: location)
             totalDistance += distance
@@ -340,21 +476,16 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         guard let location = locations.last else { return }
         
         currentLocation = location
-        
-        // Update tracking stats for foreground
         updateTrackingStats(location: location, isBackground: false)
         
-        // Log location update
         if enableLogging {
             print("NectarTracker: Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Foreground)")
         }
         
-        // Show notification if enabled
         if showLocationNotifications {
             showLocationNotification(location: location, isBackground: false)
         }
         
-        // Send foreground location data
         let foregroundData: [String: Any] = [
             "latitude": location.coordinate.latitude,
             "longitude": location.coordinate.longitude,
@@ -369,23 +500,43 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         
         eventSink?(foregroundData)
         
-        // If background mode is enabled, also send background location data
+        if mqttClient?.connState == .connected {
+            let payload: [String: Any] = [
+                "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
+                "id": userId,
+                "batteryLevel": batteryLevel,
+                "type": userType,
+                "time": Int(Date().timeIntervalSince1970 * 1000),
+                "deviceId": deviceId,
+                "domain": domain,
+                "username": usernameField,
+                "identifier": identifier,
+                "skills": skills,
+                "status": status,
+                "name": name,
+                "geofence": geofence,
+                "emailid": emailid,
+                "mobile": mobile,
+                "jobId": jobId
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+               let jsonString = String(data: data, encoding: .utf8) {
+                mqttClient?.publish(mqttTopic, withString: jsonString, qos: .qos1)
+            }
+        } else if enableLogging {
+            print("NectarTracker: MQTT not connected, skipping publish")
+        }
+        
         if enableBackgroundMode && isTracking {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 if self.isTracking {
-                    // Update tracking stats for background
                     self.updateTrackingStats(location: location, isBackground: true)
-                    
-                    // Log background location update
                     if self.enableLogging {
                         print("NectarTracker: Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Background)")
                     }
-                    
-                    // Show notification if enabled
                     if self.showLocationNotifications {
                         self.showLocationNotification(location: location, isBackground: true)
                     }
-                    
                     let backgroundData: [String: Any] = [
                         "latitude": location.coordinate.latitude,
                         "longitude": location.coordinate.longitude,
@@ -397,7 +548,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                         "isBackground": true,
                         "provider": "iOS"
                     ]
-                    
                     self.eventSink?(backgroundData)
                 }
             }

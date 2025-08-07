@@ -28,6 +28,8 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import java.util.concurrent.atomic.AtomicInteger
+import org.eclipse.paho.client.mqttv3.*
+import org.eclipse.paho.android.service.MqttAndroidClient
 
 class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
     private companion object {
@@ -58,6 +60,28 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
     // Settings
     private var enableLogging = true
     private var showLocationNotifications = false
+
+    // MQTT config fields
+    private var mqttBroker: String = "broker.hivemq.com"
+    private var mqttPort: Int = 1883
+    private var mqttUsername: String? = null
+    private var mqttPassword: String? = null
+    private var mqttTopic: String = "nectar/location"
+    // User/device/job info fields
+    private var userId: String = ""
+    private var batteryLevel: Int = 0
+    private var userType: String = ""
+    private var deviceId: String = ""
+    private var domain: String = ""
+    private var usernameField: String = ""
+    private var identifier: String = ""
+    private var skillsJson: String = "[]"
+    private var status: String = ""
+    private var name: String = ""
+    private var geofence: String = ""
+    private var emailid: String = ""
+    private var mobile: String = ""
+    private var jobId: String = ""
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
@@ -325,6 +349,29 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             "getPlatformVersion" -> {
                 result.success("Android ${android.os.Build.VERSION.RELEASE}")
             }
+            "setMqttConfigAndDetails" -> {
+                val args = call.arguments as? Map<String, Any>
+                mqttBroker = args?.get("broker") as? String ?: mqttBroker
+                mqttPort = (args?.get("port") as? Int) ?: mqttPort
+                mqttUsername = args?.get("username") as? String
+                mqttPassword = args?.get("password") as? String
+                mqttTopic = args?.get("topic") as? String ?: mqttTopic
+                userId = args?.get("userId") as? String ?: ""
+                batteryLevel = (args?.get("batteryLevel") as? Int) ?: 0
+                userType = args?.get("userType") as? String ?: ""
+                deviceId = args?.get("deviceId") as? String ?: ""
+                domain = args?.get("domain") as? String ?: ""
+                usernameField = args?.get("username") as? String ?: ""
+                identifier = args?.get("identifier") as? String ?: ""
+                skillsJson = (args?.get("skills") as? List<*>)?.let { com.google.gson.Gson().toJson(it) } ?: "[]"
+                status = args?.get("status") as? String ?: ""
+                name = args?.get("name") as? String ?: ""
+                geofence = args?.get("geofence") as? String ?: ""
+                emailid = args?.get("emailid") as? String ?: ""
+                mobile = args?.get("mobile") as? String ?: ""
+                jobId = args?.get("jobId") as? String ?: ""
+                result.success(null)
+            }
             else -> {
                 result.notImplemented()
             }
@@ -364,6 +411,9 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
         private lateinit var fusedLocationClient: FusedLocationProviderClient
         private lateinit var locationCallback: LocationCallback
         private var wakeLock: PowerManager.WakeLock? = null
+        private var mqttClient: MqttAndroidClient? = null
+        private val mqttBrokerUrl = "tcp://broker.hivemq.com:1883"
+        private val mqttTopic = "nectar/location"
 
         companion object {
             private const val TAG = "LocationForegroundService"
@@ -423,6 +473,9 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             // Save tracking state
             val sharedPrefs = getSharedPreferences("nectar_tracker", Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("tracking_enabled", true).apply()
+            // Initialize MQTT
+            mqttClient = MqttAndroidClient(applicationContext, mqttBrokerUrl, "nectar_android_" + System.currentTimeMillis())
+            mqttClient?.connect()
         }
 
         override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -467,6 +520,32 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 broadcastLocation(location, true)
                             }, 1000)
+                        }
+                        // --- MQTT publish ---
+                        val payload = """
+{
+  \"location\": \"POINT(${location.longitude} ${location.latitude})\",
+  \"id\": \"$userId\",
+  \"batteryLevel\": $batteryLevel,
+  \"type\": \"$userType\",
+  \"time\": ${System.currentTimeMillis()},
+  \"deviceId\": \"$deviceId\",
+  \"domain\": \"$domain\",
+  \"username\": \"$usernameField\",
+  \"identifier\": \"$identifier\",
+  \"skills\": $skillsJson,
+  \"status\": \"$status\",
+  \"name\": \"$name\",
+  \"geofence\": \"$geofence\",
+  \"emailid\": \"$emailid\",
+  \"mobile\": \"$mobile\",
+  \"jobId\": \"$jobId\"
+}
+""".trimIndent()
+                        try {
+                            mqttClient?.publish(mqttTopic, payload.toByteArray(), 0, false)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "MQTT publish failed: ${e.message}")
                         }
                     }
                 }
@@ -541,6 +620,8 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             // Clear tracking state
             val sharedPrefs = getSharedPreferences("nectar_tracker", Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("tracking_enabled", false).apply()
+            // Disconnect MQTT
+            mqttClient?.disconnect()
         }
 
         override fun onBind(intent: Intent?): IBinder? {

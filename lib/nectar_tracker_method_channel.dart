@@ -145,4 +145,50 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
     final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
     return version;
   }
+
+  @override
+  Future<void> setMqttConfigAndDetails({
+    required String broker,
+    required int port,
+    required String username,
+    required String password,
+    required String topic,
+    required String userId,
+    required int batteryLevel,
+    required String userType,
+    required String deviceId,
+    required String domain,
+    required String usernameField,
+    required String identifier,
+    required List<String> skills,
+    required String status,
+    required String name,
+    required String geofence,
+    required String emailid,
+    required String mobile,
+    required String jobId,
+  }) async {
+    await methodChannel.invokeMethod('setMqttConfigAndDetails', {
+      'broker': broker,
+      'port': port,
+      'username': username,
+      'password': password,
+      'topic': topic,
+      'userId': userId,
+      'batteryLevel': batteryLevel,
+      'userType': userType,
+      'deviceId': deviceId,
+      'domain': domain,
+      // ignore: equal_keys_in_map
+      'username': usernameField, // Note: using usernameField for the key 'username'
+      'identifier': identifier,
+      'skills': skills,
+      'status': status,
+      'name': name,
+      'geofence': geofence,
+      'emailid': emailid,
+      'mobile': mobile,
+      'jobId': jobId,
+    });
+  }
 }

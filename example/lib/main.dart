@@ -266,6 +266,28 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _startTracking() async {
     try {
+      // Set all MQTT and user/device/job details before starting tracking
+      _nectarTracker.setMqttConfigAndDetails(
+        broker: "messages.nectarit.com",
+        port: 8884,
+        username: "mobile-ui",
+        password: "NecAws@123",
+        topic: "your/location/topic",
+        userId: "17826",
+        batteryLevel: 28,
+        userType: "Mechanic",
+        deviceId: "da8905647e2853b8",
+        domain: "dha",
+        usernameField: "thahir",
+        identifier: "thahir@dha",
+        skills: [],
+        status: "ONLINE",
+        name: "THAHIR AbduKareem",
+        geofence: "Muhaisnah MFC Area",
+        emailid: "riyas@nectarit.com",
+        mobile: "000000000",
+        jobId: "",
+      );
       setState(() {
         _status = 'Starting tracking...';
       });
@@ -288,7 +310,6 @@ class _MyAppState extends State<MyApp> {
         _status = 'Start tracking failed: $e';
       });
       _addLog(_actionLogs, '[Error] Start tracking failed: $e');
-
       // If it's a permission error, show a helpful message
       if (e.toString().contains('PERMISSION_DENIED')) {
         _addLog(_actionLogs, '[Error] Please grant location permissions in app settings');
