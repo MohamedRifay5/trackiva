@@ -75,8 +75,8 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         setupMqttClient()
         
         if enableLogging {
-            print("\(TAG): NectarTrackerPlugin initialized")
-            print("\(TAG): MQTT Config - Broker: \(mqttBroker):\(mqttPort), Topic: \(mqttTopic)")
+            print("\(NectarTrackerPlugin.TAG): NectarTrackerPlugin initialized")
+            print("\(NectarTrackerPlugin.TAG): MQTT Config - Broker: \(mqttBroker):\(mqttPort), Topic: \(mqttTopic)")
         }
     }
     
@@ -151,14 +151,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             // Additional SSL settings for better compatibility
             mqtt.allowUntrustCACertificate = true
             if enableLogging {
-                print("\(TAG): SSL enabled for port \(mqttPort)")
+                print("\(NectarTrackerPlugin.TAG): SSL enabled for port \(mqttPort)")
             }
         }
         
         mqttClient = mqtt
         
         if enableLogging {
-            print("\(TAG): MQTT client initialized - Broker: \(mqttBroker):\(mqttPort), ClientID: \(clientID)")
+            print("\(NectarTrackerPlugin.TAG): MQTT client initialized - Broker: \(mqttBroker):\(mqttPort), ClientID: \(clientID)")
         }
     }
     
@@ -178,7 +178,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             interval = TimeInterval((args["interval"] as? Int ?? 5000) / 1000)
             
             if enableLogging {
-                print("\(TAG): Initializing with logging enabled")
+                print("\(NectarTrackerPlugin.TAG): Initializing with logging enabled")
             }
             
             locationManager = CLLocationManager()
@@ -202,13 +202,13 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                 let center = UNUserNotificationCenter.current()
                 center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                     if self.enableLogging {
-                        print("\(TAG): Notification permission granted: \(granted)")
+                        print("\(NectarTrackerPlugin.TAG): Notification permission granted: \(granted)")
                     }
                 }
             }
             
             if enableLogging {
-                print("\(TAG): Initialized successfully")
+                print("\(NectarTrackerPlugin.TAG): Initialized successfully")
             }
             
             result(nil)
@@ -220,7 +220,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             }
             
             if enableLogging {
-                print("\(TAG): Starting location tracking")
+                print("\(NectarTrackerPlugin.TAG): Starting location tracking")
             }
             
             isTracking = true
@@ -236,14 +236,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             UserDefaults.standard.set(true, forKey: "tracking_enabled")
             
             if enableLogging {
-                print("\(TAG): Location tracking started successfully")
+                print("\(NectarTrackerPlugin.TAG): Location tracking started successfully")
             }
             
             result(nil)
             
         case "stopTracking":
             if enableLogging {
-                print("\(TAG): Stopping location tracking")
+                print("\(NectarTrackerPlugin.TAG): Stopping location tracking")
             }
             
             isTracking = false
@@ -259,7 +259,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             UserDefaults.standard.set(false, forKey: "tracking_enabled")
             
             if enableLogging {
-                print("\(TAG): Location tracking stopped successfully")
+                print("\(NectarTrackerPlugin.TAG): Location tracking stopped successfully")
             }
             
             result(nil)
@@ -269,12 +269,12 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             
         case "getCurrentLocation":
             if enableLogging {
-                print("\(TAG): Getting current location")
+                print("\(NectarTrackerPlugin.TAG): Getting current location")
             }
             
             if let location = currentLocation {
                 if enableLogging {
-                    print("\(TAG): Current location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                    print("\(NectarTrackerPlugin.TAG): Current location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                 }
                 
                 let locationMap: [String: Any] = [
@@ -307,7 +307,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             }
             
             if enableLogging {
-                print("\(TAG): Setting location accuracy to: \(accuracy)")
+                print("\(NectarTrackerPlugin.TAG): Setting location accuracy to: \(accuracy)")
             }
             
             switch accuracy {
@@ -342,14 +342,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             ]
             
             if enableLogging {
-                print("\(TAG): Tracking stats: \(totalLocations) locations, \(String(format: "%.2f", totalDistance))m distance")
+                print("\(NectarTrackerPlugin.TAG): Tracking stats: \(totalLocations) locations, \(String(format: "%.2f", totalDistance))m distance")
             }
             
             result(stats)
             
         case "clearTrackingData":
             if enableLogging {
-                print("\(TAG): Clearing tracking data")
+                print("\(NectarTrackerPlugin.TAG): Clearing tracking data")
             }
             
             totalLocations = 0
@@ -361,7 +361,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             lastLocation = nil
             
             if enableLogging {
-                print("\(TAG): Tracking data cleared successfully")
+                print("\(NectarTrackerPlugin.TAG): Tracking data cleared successfully")
             }
             
             result(true)
@@ -415,7 +415,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             }
             
             if enableLogging {
-                print("\(TAG): MQTT config updated - Broker: \(mqttBroker), Topic: \(mqttTopic)")
+                print("\(NectarTrackerPlugin.TAG): MQTT config updated - Broker: \(mqttBroker), Topic: \(mqttTopic)")
             }
             
             result(nil)
@@ -431,7 +431,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Check if already connected
         if mqttClient?.connState == .connected {
             if enableLogging {
-                print("\(TAG): Already connected to MQTT")
+                print("\(NectarTrackerPlugin.TAG): Already connected to MQTT")
             }
             return true
         }
@@ -439,7 +439,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Check if already connecting
         if isConnecting {
             if enableLogging {
-                print("\(TAG): Already attempting to connect to MQTT")
+                print("\(NectarTrackerPlugin.TAG): Already attempting to connect to MQTT")
             }
             return false
         }
@@ -447,7 +447,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Validate parameters
         guard !mqttBroker.isEmpty, mqttPort > 0 else {
             if enableLogging {
-                print("\(TAG): MQTT connection failed: Missing required parameters")
+                print("\(NectarTrackerPlugin.TAG): MQTT connection failed: Missing required parameters")
             }
             return false
         }
@@ -471,7 +471,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             // Additional SSL settings for better compatibility
             mqtt.allowUntrustCACertificate = true
             if enableLogging {
-                print("\(TAG): SSL enabled for port \(mqttPort)")
+                print("\(NectarTrackerPlugin.TAG): SSL enabled for port \(mqttPort)")
             }
         }
         
@@ -481,7 +481,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Single connection attempt
         let connected = mqtt.connect()
         if enableLogging {
-            print("\(TAG): MQTT connection attempt result: \(connected)")
+            print("\(NectarTrackerPlugin.TAG): MQTT connection attempt result: \(connected)")
         }
         
         // Reset connecting flag if connection attempt failed immediately
@@ -494,7 +494,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     private func disconnectMqtt() {
         if enableLogging {
-            print("\(TAG): Disconnecting MQTT")
+            print("\(NectarTrackerPlugin.TAG): Disconnecting MQTT")
         }
         
         mqttClient?.disconnect()
@@ -502,7 +502,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         mqttConnected = false
         
         if enableLogging {
-            print("\(TAG): MQTT disconnected")
+            print("\(NectarTrackerPlugin.TAG): MQTT disconnected")
         }
     }
     
@@ -510,7 +510,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Check if MQTT is connected
         guard let mqtt = mqttClient else {
             if enableLogging {
-                print("\(TAG): MQTT client not initialized")
+                print("\(NectarTrackerPlugin.TAG): MQTT client not initialized")
             }
             return false
         }
@@ -518,7 +518,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Check connection state
         guard mqtt.connState == .connected else {
             if enableLogging {
-                print("\(TAG): MQTT not connected, current state: \(mqtt.connState)")
+                print("\(NectarTrackerPlugin.TAG): MQTT not connected, current state: \(mqtt.connState)")
             }
             // Try to reconnect if not connected
             if isTracking {
@@ -532,7 +532,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Validate required fields
         guard !userId.isEmpty else {
             if enableLogging {
-                print("\(TAG): MQTT publish failed: userId is empty")
+                print("\(NectarTrackerPlugin.TAG): MQTT publish failed: userId is empty")
             }
             return false
         }
@@ -557,25 +557,24 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             "jobId": jobId
         ]
         
-        let fullTopic = "\(mqttTopic)/\(userId)"
         
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: payload)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
                 if enableLogging {
                     let status = isBackground ? "Background" : "Foreground"
-                    print("\(TAG): Sending location to MQTT (\(status)): \(jsonString)")
+                    print("\(NectarTrackerPlugin.TAG): Sending location to MQTT (\(status)): \(jsonString)")
                 }
-                mqtt.publish(fullTopic, withString: jsonString, qos: .qos1)
+                mqtt.publish(mqttTopic, withString: jsonString, qos: .qos1)
                 return true
             } else {
                 if enableLogging {
-                    print("\(TAG): Failed to convert JSON data to string")
+                    print("\(NectarTrackerPlugin.TAG): Failed to convert JSON data to string")
                 }
             }
         } catch {
             if enableLogging {
-                print("\(TAG): Failed to serialize JSON: \(error)")
+                print("\(NectarTrackerPlugin.TAG): Failed to serialize JSON: \(error)")
             }
         }
         
@@ -590,7 +589,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
         
         if enableLogging {
-            print("\(TAG): Background task started")
+            print("\(NectarTrackerPlugin.TAG): Background task started")
         }
     }
     
@@ -600,7 +599,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             backgroundTask = .invalid
             
             if enableLogging {
-                print("\(TAG): Background task ended")
+                print("\(NectarTrackerPlugin.TAG): Background task ended")
             }
         }
     }
@@ -641,7 +640,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             
             UNUserNotificationCenter.current().add(request) { error in
                 if let error = error {
-                    print("\(TAG): Failed to show notification: \(error)")
+                    print("\(NectarTrackerPlugin.TAG): Failed to show notification: \(error)")
                 }
             }
         }
@@ -668,7 +667,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         updateTrackingStats(location: location, isBackground: false)
         
         if enableLogging {
-            print("\(TAG): Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Foreground)")
+            print("\(NectarTrackerPlugin.TAG): Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Foreground)")
         }
         
         if showLocationNotifications {
@@ -692,7 +691,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         // Publish to MQTT
         if !publishToMqtt(location: location, isBackground: false) {
             if enableLogging {
-                print("\(TAG): Failed to publish location to MQTT")
+                print("\(NectarTrackerPlugin.TAG): Failed to publish location to MQTT")
             }
         }
         
@@ -701,7 +700,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                 if self.isTracking {
                     self.updateTrackingStats(location: location, isBackground: true)
                     if self.enableLogging {
-                        print("\(TAG): Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Background)")
+                        print("\(NectarTrackerPlugin.TAG): Location update: \(location.coordinate.latitude), \(location.coordinate.longitude) (Background)")
                     }
                     if self.showLocationNotifications {
                         self.showLocationNotification(location: location, isBackground: true)
@@ -722,7 +721,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                     // Also publish to MQTT when in background
                     if !self.publishToMqtt(location: location, isBackground: true) {
                         if self.enableLogging {
-                            print("\(TAG): Failed to publish background location to MQTT")
+                            print("\(NectarTrackerPlugin.TAG): Failed to publish background location to MQTT")
                         }
                     }
                 }
@@ -732,7 +731,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         if enableLogging {
-            print("\(TAG): Location error: \(error.localizedDescription)")
+            print("\(NectarTrackerPlugin.TAG): Location error: \(error.localizedDescription)")
         }
         eventSink?(FlutterError(code: "LOCATION_ERROR", message: error.localizedDescription, details: nil))
     }
@@ -748,28 +747,28 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         if enableLogging {
             switch authorizationStatus {
             case .authorizedAlways:
-                print("\(TAG): Location authorization: Always")
+                print("\(NectarTrackerPlugin.TAG): Location authorization: Always")
             case .authorizedWhenInUse:
-                print("\(TAG): Location authorization: When in use")
+                print("\(NectarTrackerPlugin.TAG): Location authorization: When in use")
             case .denied, .restricted:
-                print("\(TAG): Location authorization: Denied")
+                print("\(NectarTrackerPlugin.TAG): Location authorization: Denied")
             case .notDetermined:
-                print("\(TAG): Location authorization: Not determined")
+                print("\(NectarTrackerPlugin.TAG): Location authorization: Not determined")
             @unknown default:
-                print("\(TAG): Location authorization: Unknown")
+                print("\(NectarTrackerPlugin.TAG): Location authorization: Unknown")
             }
         }
     }
     
     public func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
         if enableLogging {
-            print("\(TAG): Location updates paused")
+            print("\(NectarTrackerPlugin.TAG): Location updates paused")
         }
     }
     
     public func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
         if enableLogging {
-            print("\(TAG): Location updates resumed")
+            print("\(NectarTrackerPlugin.TAG): Location updates resumed")
         }
     }
     
@@ -804,35 +803,35 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         isConnecting = false
         
         if enableLogging {
-            print("\(TAG): MQTT Connected: \(ack)")
+            print("\(NectarTrackerPlugin.TAG): MQTT Connected: \(ack)")
         }
         
         if ack == .accept {
             mqttConnected = true
             if enableLogging {
-                print("\(TAG): MQTT connection successful")
+                print("\(NectarTrackerPlugin.TAG): MQTT connection successful")
             }
         } else {
             mqttConnected = false
             if enableLogging {
-                print("\(TAG): MQTT connection failed with ACK: \(ack.rawValue)")
+                print("\(NectarTrackerPlugin.TAG): MQTT connection failed with ACK: \(ack.rawValue)")
                 switch ack {
                 case .accept:
-                    print("\(TAG): Connection accepted")
+                    print("\(NectarTrackerPlugin.TAG): Connection accepted")
                 case .unacceptableProtocolVersion:
-                    print("\(TAG): Unacceptable protocol version")
+                    print("\(NectarTrackerPlugin.TAG): Unacceptable protocol version")
                 case .identifierRejected:
-                    print("\(TAG): Identifier rejected")
+                    print("\(NectarTrackerPlugin.TAG): Identifier rejected")
                 case .serverUnavailable:
-                    print("\(TAG): Server unavailable")
+                    print("\(NectarTrackerPlugin.TAG): Server unavailable")
                 case .badUsernameOrPassword:
-                    print("\(TAG): Bad username or password")
+                    print("\(NectarTrackerPlugin.TAG): Bad username or password")
                 case .notAuthorized:
-                    print("\(TAG): Not authorized")
+                    print("\(NectarTrackerPlugin.TAG): Not authorized")
                 case .reserved:
-                    print("\(TAG): Reserved")
+                    print("\(NectarTrackerPlugin.TAG): Reserved")
                 @unknown default:
-                    print("\(TAG): Unknown connection error")
+                    print("\(NectarTrackerPlugin.TAG): Unknown connection error")
                 }
             }
         }
@@ -840,43 +839,43 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     public func mqtt(_ mqtt: CocoaMQTT, didPublishMessage message: CocoaMQTTMessage, id: UInt16) {
         if enableLogging {
-            print("\(TAG): Message published - ID: \(id), Topic: \(message.topic)")
+            print("\(NectarTrackerPlugin.TAG): Message published - ID: \(id), Topic: \(message.topic)")
         }
     }
     
     public func mqtt(_ mqtt: CocoaMQTT, didPublishAck id: UInt16) {
         if enableLogging {
-            print("\(TAG): Message publish acknowledged - ID: \(id)")
+            print("\(NectarTrackerPlugin.TAG): Message publish acknowledged - ID: \(id)")
         }
     }
     
     public func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16) {
         if enableLogging {
-            print("\(TAG): Received message - ID: \(id), Topic: \(message.topic), Payload: \(message.string ?? "")")
+            print("\(NectarTrackerPlugin.TAG): Received message - ID: \(id), Topic: \(message.topic), Payload: \(message.string ?? "")")
         }
     }
     
     public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics success: NSDictionary, failed: [String]) {
         if enableLogging {
-            print("\(TAG): Subscribed to topics - Success: \(success), Failed: \(failed)")
+            print("\(NectarTrackerPlugin.TAG): Subscribed to topics - Success: \(success), Failed: \(failed)")
         }
     }
     
     public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopics topics: [String]) {
         if enableLogging {
-            print("\(TAG): Unsubscribed from topics: \(topics)")
+            print("\(NectarTrackerPlugin.TAG): Unsubscribed from topics: \(topics)")
         }
     }
     
     public func mqttDidPing(_ mqtt: CocoaMQTT) {
         if enableLogging {
-            print("\(TAG): MQTT did ping")
+            print("\(NectarTrackerPlugin.TAG): MQTT did ping")
         }
     }
     
     public func mqttDidReceivePong(_ mqtt: CocoaMQTT) {
         if enableLogging {
-            print("\(TAG): MQTT did receive pong")
+            print("\(NectarTrackerPlugin.TAG): MQTT did receive pong")
         }
     }
     
@@ -885,8 +884,8 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         isConnecting = false
         
         if enableLogging {
-            print("\(TAG): MQTT did disconnect with error: \(String(describing: err))")
-            print("\(TAG): MQTT Disconnected: \(err?.localizedDescription ?? "No error")")
+            print("\(NectarTrackerPlugin.TAG): MQTT did disconnect with error: \(String(describing: err))")
+            print("\(NectarTrackerPlugin.TAG): MQTT Disconnected: \(err?.localizedDescription ?? "No error")")
         }
         
         // Try to reconnect if still tracking and not manually disconnected
@@ -894,7 +893,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 if self.isTracking {
                     if self.enableLogging {
-                        print("\(TAG): Attempting to reconnect MQTT after disconnect")
+                        print("\(NectarTrackerPlugin.TAG): Attempting to reconnect MQTT after disconnect")
                     }
                     self.connectMqtt()
                 }
@@ -904,19 +903,19 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     public func _console(_ mqtt: CocoaMQTT, didConnect host: String, port: Int) {
         if enableLogging {
-            print("\(TAG): MQTT Console - Connected to \(host):\(port)")
+            print("\(NectarTrackerPlugin.TAG): MQTT Console - Connected to \(host):\(port)")
         }
     }
     
     public func _console(_ mqtt: CocoaMQTT, didSubscribeTopic topic: String) {
         if enableLogging {
-            print("\(TAG): MQTT Console - Subscribed to topic: \(topic)")
+            print("\(NectarTrackerPlugin.TAG): MQTT Console - Subscribed to topic: \(topic)")
         }
     }
     
     public func _console(_ mqtt: CocoaMQTT, didUnsubscribeTopic topic: String) {
         if enableLogging {
-            print("\(TAG): MQTT Console - Unsubscribed from topic: \(topic)")
+            print("\(NectarTrackerPlugin.TAG): MQTT Console - Unsubscribed from topic: \(topic)")
         }
     }
 }
