@@ -4,7 +4,7 @@ import CoreLocation
 import UserNotifications
 import CocoaMQTT
 
-public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate, CocoaMQTTDelegate {
+public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate {
     private static let CHANNEL_NAME = "nectar_tracker"
     private static let EVENT_CHANNEL_NAME = "nectar_tracker/updates"
     
@@ -76,7 +76,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         mqttClient = CocoaMQTT(clientID: "nectar_ios_\(UUID().uuidString)", host: mqttBroker, port: UInt16(mqttPort))
         mqttClient?.username = mqttUsername
         mqttClient?.password = mqttPassword
-        mqttClient?.delegate = self
         mqttClient?.autoReconnect = true
         mqttClient?.logLevel = enableLogging ? .debug : .off
     }
@@ -440,12 +439,13 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
            let jsonString = String(data: data, encoding: .utf8) {
             
-            // Always try to publish, let MQTT handle connection issues
-            mqttClient.publish(mqttTopic, withString: jsonString, qos: .qos1)
+            // Try to publish the message
+            let messageId = mqttClient.publish(mqttTopic, withString: jsonString, qos: .qos1)
             
             if enableLogging {
                 let status = isBackground ? "Background" : "Foreground"
                 print("NectarTracker: MQTT message sent (\(status)) - \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                print("NectarTracker: MQTT message ID: \(messageId)")
                 print("NectarTracker: MQTT connection state: \(mqttClient.connState)")
             }
         } else {
@@ -570,56 +570,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     public func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
         if enableLogging {
             print("NectarTracker: Location updates resumed")
-        }
-    }
-    
-    // MARK: - CocoaMQTTDelegate
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
-        if enableLogging {
-            print("NectarTracker: MQTT connected with ACK: \(ack.rawValue)")
-        }
-    }
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didPublishMessage message: CocoaMQTTMessage, id: UInt16) {
-        if enableLogging {
-            print("NectarTracker: Message published - ID: \(id), Topic: \(message.topic)")
-        }
-    }
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16) {
-        if enableLogging {
-            print("NectarTracker: Received message - ID: \(id), Topic: \(message.topic), Payload: \(message.string ?? "")")
-        }
-    }
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics topics: [String]) {
-        if enableLogging {
-            print("NectarTracker: Subscribed to topics: \(topics)")
-        }
-    }
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopics topics: [String]) {
-        if enableLogging {
-            print("NectarTracker: Unsubscribed from topics: \(topics)")
-        }
-    }
-    
-    @objc public func mqtt(_ mqtt: CocoaMQTT, didReceivePong: CocoaMQTT) {
-        if enableLogging {
-            print("NectarTracker: MQTT pong received")
-        }
-    }
-    
-    @objc public func mqttDidPing(_ mqtt: CocoaMQTT) {
-        if enableLogging {
-            print("NectarTracker: MQTT ping sent")
-        }
-    }
-    
-    @objc public func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
-        if enableLogging {
-            print("NectarTracker: MQTT disconnected with error: \(err?.localizedDescription ?? "No error")")
         }
     }
 }
