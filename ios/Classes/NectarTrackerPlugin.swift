@@ -78,6 +78,19 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         mqttClient?.password = mqttPassword
         mqttClient?.autoReconnect = true
         mqttClient?.logLevel = enableLogging ? .debug : .off
+        
+        // Set up connection callback
+        mqttClient?.didConnectAck = { [weak self] mqtt, ack in
+            if self?.enableLogging == true {
+                print("NectarTracker: MQTT connected with ACK: \(ack.rawValue)")
+            }
+        }
+        
+        mqttClient?.didDisconnect = { [weak self] mqtt, error in
+            if self?.enableLogging == true {
+                print("NectarTracker: MQTT disconnected with error: \(error?.localizedDescription ?? "No error")")
+            }
+        }
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -409,6 +422,64 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
     }
     
+    private func publishToMqtt(location: CLLocation, isBackground: Bool) {
+        guard let mqttClient = mqttClient else {
+            if enableLogging {
+                print("NectarTracker: MQTT client not initialized")
+            }
+            return
+        }
+        
+        // Ensure MQTT is connected
+        if mqttClient.connState != .connected {
+            if enableLogging {
+                print("NectarTracker: MQTT not connected, attempting to connect...")
+            }
+            mqttClient.connect()
+            
+            // Wait a bit for connection and then try to publish
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.attemptPublish(location: location, isBackground: isBackground)
+            }
+        } else {
+            attemptPublish(location: location, isBackground: isBackground)
+        }
+    }
+    
+    private func attemptPublish(location: CLLocation, isBackground: Bool) {
+        let payload: [String: Any] = [
+            "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
+            "id": userId,
+            "batteryLevel": batteryLevel,
+            "type": userType,
+            "time": Int(Date().timeIntervalSince1970 * 1000),
+            "deviceId": deviceId,
+            "domain": domain,
+            "username": usernameField,
+            "identifier": identifier,
+            "skills": skills,
+            "status": status,
+            "name": name,
+            "geofence": geofence,
+            "emailid": emailid,
+            "mobile": mobile,
+            "jobId": jobId
+        ]
+        
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+           let jsonString = String(data: data, encoding: .utf8) {
+            mqttClient?.publish(mqttTopic, withString: jsonString, qos: .qos1)
+            if enableLogging {
+                let status = isBackground ? "Background" : "Foreground"
+                print("NectarTracker: MQTT message published (\(status)) - \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            }
+        } else {
+            if enableLogging {
+                print("NectarTracker: Failed to serialize MQTT payload")
+            }
+        }
+    }
+    
     // MARK: - FlutterStreamHandler
     
     public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
@@ -451,32 +522,8 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         
         eventSink?(foregroundData)
         
-        if mqttClient?.connState == .connected {
-            let payload: [String: Any] = [
-                "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
-                "id": userId,
-                "batteryLevel": batteryLevel,
-                "type": userType,
-                "time": Int(Date().timeIntervalSince1970 * 1000),
-                "deviceId": deviceId,
-                "domain": domain,
-                "username": usernameField,
-                "identifier": identifier,
-                "skills": skills,
-                "status": status,
-                "name": name,
-                "geofence": geofence,
-                "emailid": emailid,
-                "mobile": mobile,
-                "jobId": jobId
-            ]
-            if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-               let jsonString = String(data: data, encoding: .utf8) {
-                mqttClient?.publish(mqttTopic, withString: jsonString, qos: .qos1)
-            }
-        } else if enableLogging {
-            print("NectarTracker: MQTT not connected, skipping publish")
-        }
+        // Publish to MQTT
+        publishToMqtt(location: location, isBackground: false)
         
         if enableBackgroundMode && isTracking {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -501,33 +548,8 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                     ]
                     self.eventSink?(backgroundData)
 
-                    // Also publish to MQTT when in background
-                    if self.mqttClient?.connState == .connected {
-                        let payload: [String: Any] = [
-                            "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
-                            "id": self.userId,
-                            "batteryLevel": self.batteryLevel,
-                            "type": self.userType,
-                            "time": Int(Date().timeIntervalSince1970 * 1000),
-                            "deviceId": self.deviceId,
-                            "domain": self.domain,
-                            "username": self.usernameField,
-                            "identifier": self.identifier,
-                            "skills": self.skills,
-                            "status": self.status,
-                            "name": self.name,
-                            "geofence": self.geofence,
-                            "emailid": self.emailid,
-                            "mobile": self.mobile,
-                            "jobId": self.jobId
-                        ]
-                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-                           let jsonString = String(data: data, encoding: .utf8) {
-                            self.mqttClient?.publish(self.mqttTopic, withString: jsonString, qos: .qos1)
-                        }
-                    } else if self.enableLogging {
-                        print("NectarTracker: MQTT not connected (background), skipping publish")
-                    }
+                                         // Also publish to MQTT when in background
+                     self.publishToMqtt(location: location, isBackground: true)
                 }
             }
         }
