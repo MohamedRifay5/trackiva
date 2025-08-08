@@ -318,7 +318,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             userType = args["userType"] as? String ?? userType
             deviceId = args["deviceId"] as? String ?? deviceId
             domain = args["domain"] as? String ?? domain
-            usernameField = args["username"] as? String ?? usernameField
+            usernameField = args["usernameField"] as? String ?? usernameField
             identifier = args["identifier"] as? String ?? identifier
             skills = args["skills"] as? [Any] ?? skills
             status = args["status"] as? String ?? status
@@ -549,6 +549,34 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                         "provider": "iOS"
                     ]
                     self.eventSink?(backgroundData)
+
+                    // Also publish to MQTT when in background
+                    if self.mqttClient?.connState == .connected {
+                        let payload: [String: Any] = [
+                            "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
+                            "id": self.userId,
+                            "batteryLevel": self.batteryLevel,
+                            "type": self.userType,
+                            "time": Int(Date().timeIntervalSince1970 * 1000),
+                            "deviceId": self.deviceId,
+                            "domain": self.domain,
+                            "username": self.usernameField,
+                            "identifier": self.identifier,
+                            "skills": self.skills,
+                            "status": self.status,
+                            "name": self.name,
+                            "geofence": self.geofence,
+                            "emailid": self.emailid,
+                            "mobile": self.mobile,
+                            "jobId": self.jobId
+                        ]
+                        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
+                           let jsonString = String(data: data, encoding: .utf8) {
+                            self.mqttClient?.publish(self.mqttTopic, withString: jsonString, qos: .qos1)
+                        }
+                    } else if self.enableLogging {
+                        print("NectarTracker: MQTT not connected (background), skipping publish")
+                    }
                 }
             }
         }

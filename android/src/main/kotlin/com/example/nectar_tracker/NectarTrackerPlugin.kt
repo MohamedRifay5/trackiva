@@ -28,8 +28,9 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import java.util.concurrent.atomic.AtomicInteger
+import com.google.gson.Gson
 import org.eclipse.paho.client.mqttv3.*
-import org.eclipse.paho.android.service.MqttAndroidClient
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
 class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
     private companion object {
@@ -41,6 +42,8 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
         const val CHANNEL_ID = "nectar_tracker_channel"
         const val LOCATION_CHANNEL_ID = "nectar_tracker_location_channel"
         const val WAKE_LOCK_TAG = "NectarTracker::LocationWakeLock"
+        const val PREFS_NAME = "nectar_tracker"
+        const val ACTION_MQTT_CONFIG_UPDATED = "com.example.nectar_tracker.MQTT_CONFIG_UPDATED"
     }
 
     private lateinit var context: Context
@@ -351,6 +354,9 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             }
             "setMqttConfigAndDetails" -> {
                 val args = call.arguments as? Map<String, Any>
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val editor = prefs.edit()
+
                 mqttBroker = args?.get("broker") as? String ?: mqttBroker
                 mqttPort = (args?.get("port") as? Int) ?: mqttPort
                 mqttUsername = args?.get("username") as? String
@@ -361,15 +367,41 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 userType = args?.get("userType") as? String ?: ""
                 deviceId = args?.get("deviceId") as? String ?: ""
                 domain = args?.get("domain") as? String ?: ""
-                usernameField = args?.get("username") as? String ?: ""
+                usernameField = args?.get("usernameField") as? String ?: ""
                 identifier = args?.get("identifier") as? String ?: ""
-                skillsJson = (args?.get("skills") as? List<*>)?.let { com.google.gson.Gson().toJson(it) } ?: "[]"
+                skillsJson = (args?.get("skills") as? List<*>)?.let { Gson().toJson(it) } ?: "[]"
                 status = args?.get("status") as? String ?: ""
                 name = args?.get("name") as? String ?: ""
                 geofence = args?.get("geofence") as? String ?: ""
                 emailid = args?.get("emailid") as? String ?: ""
                 mobile = args?.get("mobile") as? String ?: ""
                 jobId = args?.get("jobId") as? String ?: ""
+
+                editor.putString("broker", mqttBroker)
+                editor.putInt("port", mqttPort)
+                editor.putString("username", mqttUsername)
+                editor.putString("password", mqttPassword)
+                editor.putString("topic", mqttTopic)
+                editor.putString("userId", userId)
+                editor.putInt("batteryLevel", batteryLevel)
+                editor.putString("userType", userType)
+                editor.putString("deviceId", deviceId)
+                editor.putString("domain", domain)
+                editor.putString("usernameField", usernameField)
+                editor.putString("identifier", identifier)
+                editor.putString("skillsJson", skillsJson)
+                editor.putString("status", status)
+                editor.putString("name", name)
+                editor.putString("geofence", geofence)
+                editor.putString("emailid", emailid)
+                editor.putString("mobile", mobile)
+                editor.putString("jobId", jobId)
+                editor.apply()
+
+                // Notify running service to reload config
+                val intent = Intent(ACTION_MQTT_CONFIG_UPDATED)
+                LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+
                 result.success(null)
             }
             else -> {
@@ -411,9 +443,27 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
         private lateinit var fusedLocationClient: FusedLocationProviderClient
         private lateinit var locationCallback: LocationCallback
         private var wakeLock: PowerManager.WakeLock? = null
-        private var mqttClient: MqttAndroidClient? = null
-        private val mqttBrokerUrl = "tcp://broker.hivemq.com:1883"
-        private val mqttTopic = "nectar/location"
+        private var mqttClient: MqttAsyncClient? = null
+        private var mqttBroker: String = "broker.hivemq.com"
+        private var mqttPort: Int = 1883
+        private var mqttUsername: String? = null
+        private var mqttPassword: String? = null
+        private var mqttTopic: String = "nectar/location"
+        private var userId: String = ""
+        private var batteryLevel: Int = 0
+        private var userType: String = ""
+        private var deviceId: String = ""
+        private var domain: String = ""
+        private var usernameField: String = ""
+        private var identifier: String = ""
+        private var skillsJson: String = "[]"
+        private var status: String = ""
+        private var name: String = ""
+        private var geofence: String = ""
+        private var emailid: String = ""
+        private var mobile: String = ""
+        private var jobId: String = ""
+        private var mqttConfigReceiver: BroadcastReceiver? = null
 
         companion object {
             private const val TAG = "LocationForegroundService"
@@ -471,11 +521,24 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             acquireWakeLock()
             
             // Save tracking state
-            val sharedPrefs = getSharedPreferences("nectar_tracker", Context.MODE_PRIVATE)
+            val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("tracking_enabled", true).apply()
-            // Initialize MQTT
-            mqttClient = MqttAndroidClient(applicationContext, mqttBrokerUrl, "nectar_android_" + System.currentTimeMillis())
-            mqttClient?.connect()
+            // Load MQTT config and initialize client
+            loadMqttConfig()
+            initMqttClient()
+
+            // Listen for runtime config updates
+            mqttConfigReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action == ACTION_MQTT_CONFIG_UPDATED) {
+                        loadMqttConfig()
+                        reconnectMqttClient()
+                    }
+                }
+            }
+            LocalBroadcastManager.getInstance(this).registerReceiver(
+                mqttConfigReceiver!!, IntentFilter(ACTION_MQTT_CONFIG_UPDATED)
+            )
         }
 
         override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -521,35 +584,105 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                                 broadcastLocation(location, true)
                             }, 1000)
                         }
-                        // --- MQTT publish ---
-                        val payload = """
-{
-  \"location\": \"POINT(${location.longitude} ${location.latitude})\",
-  \"id\": \"$userId\",
-  \"batteryLevel\": $batteryLevel,
-  \"type\": \"$userType\",
-  \"time\": ${System.currentTimeMillis()},
-  \"deviceId\": \"$deviceId\",
-  \"domain\": \"$domain\",
-  \"username\": \"$usernameField\",
-  \"identifier\": \"$identifier\",
-  \"skills\": $skillsJson,
-  \"status\": \"$status\",
-  \"name\": \"$name\",
-  \"geofence\": \"$geofence\",
-  \"emailid\": \"$emailid\",
-  \"mobile\": \"$mobile\",
-  \"jobId\": \"$jobId\"
-}
-""".trimIndent()
+                        // --- MQTT publish (proper JSON encoding) ---
+                        val json = org.json.JSONObject().apply {
+                            put("location", "POINT(${location.longitude} ${location.latitude})")
+                            put("id", userId)
+                            put("batteryLevel", batteryLevel)
+                            put("type", userType)
+                            put("time", System.currentTimeMillis())
+                            put("deviceId", deviceId)
+                            put("domain", domain)
+                            put("username", usernameField)
+                            put("identifier", identifier)
+                            val skillsArray = try { org.json.JSONArray(skillsJson) } catch (_: Exception) { org.json.JSONArray() }
+                            put("skills", skillsArray)
+                            put("status", status)
+                            put("name", name)
+                            put("geofence", geofence)
+                            put("emailid", emailid)
+                            put("mobile", mobile)
+                            put("jobId", jobId)
+                        }
+                        val payload = json.toString()
                         try {
-                            mqttClient?.publish(mqttTopic, payload.toByteArray(), 0, false)
+                            if (mqttClient?.isConnected == true) {
+                                val message = MqttMessage(payload.toByteArray()).apply {
+                                    qos = 0
+                                    isRetained = false
+                                }
+                                mqttClient?.publish(mqttTopic, message)
+                            } else {
+                                Log.w(TAG, "MQTT not connected, skipping publish")
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "MQTT publish failed: ${e.message}")
                         }
                     }
                 }
             }
+        }
+
+        private fun loadMqttConfig() {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            mqttBroker = prefs.getString("broker", mqttBroker) ?: mqttBroker
+            mqttPort = prefs.getInt("port", mqttPort)
+            mqttUsername = prefs.getString("username", mqttUsername)
+            mqttPassword = prefs.getString("password", mqttPassword)
+            mqttTopic = prefs.getString("topic", mqttTopic) ?: mqttTopic
+            userId = prefs.getString("userId", userId) ?: userId
+            batteryLevel = prefs.getInt("batteryLevel", batteryLevel)
+            userType = prefs.getString("userType", userType) ?: userType
+            deviceId = prefs.getString("deviceId", deviceId) ?: deviceId
+            domain = prefs.getString("domain", domain) ?: domain
+            usernameField = prefs.getString("usernameField", usernameField) ?: usernameField
+            identifier = prefs.getString("identifier", identifier) ?: identifier
+            skillsJson = prefs.getString("skillsJson", skillsJson) ?: skillsJson
+            status = prefs.getString("status", status) ?: status
+            name = prefs.getString("name", name) ?: name
+            geofence = prefs.getString("geofence", geofence) ?: geofence
+            emailid = prefs.getString("emailid", emailid) ?: emailid
+            mobile = prefs.getString("mobile", mobile) ?: mobile
+            jobId = prefs.getString("jobId", jobId) ?: jobId
+        }
+
+        private fun initMqttClient() {
+            try {
+                val scheme = if (mqttPort == 8883 || mqttPort == 8884) "ssl" else "tcp"
+                val brokerUrl = "$scheme://$mqttBroker:$mqttPort"
+                val clientId = "nectar_android_" + System.currentTimeMillis()
+                mqttClient = MqttAsyncClient(brokerUrl, clientId, MemoryPersistence())
+                mqttClient?.setCallback(object : MqttCallback {
+                    override fun connectionLost(cause: Throwable?) {
+                        Log.e(TAG, "MQTT connection lost: ${cause?.message}")
+                    }
+                    override fun messageArrived(topic: String?, message: MqttMessage?) {}
+                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+                })
+                val options = MqttConnectOptions().apply {
+                    isAutomaticReconnect = true
+                    isCleanSession = true
+                    mqttUsername?.let { userName = it }
+                    mqttPassword?.let { password = it.toCharArray() }
+                }
+                Thread {
+                    try {
+                        mqttClient?.connect(options)?.waitForCompletion()
+                        Log.d(TAG, "MQTT connected to $brokerUrl")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "MQTT connect failed: ${e.message}")
+                    }
+                }.start()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to init MQTT: ${e.message}")
+            }
+        }
+
+        private fun reconnectMqttClient() {
+            try {
+                mqttClient?.disconnectForcibly(100)
+            } catch (_: Exception) {}
+            initMqttClient()
         }
 
         private fun broadcastLocation(location: Location, isBackground: Boolean) {
@@ -618,10 +751,14 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             releaseWakeLock()
             
             // Clear tracking state
-            val sharedPrefs = getSharedPreferences("nectar_tracker", Context.MODE_PRIVATE)
+            val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("tracking_enabled", false).apply()
             // Disconnect MQTT
             mqttClient?.disconnect()
+            mqttConfigReceiver?.let {
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+                mqttConfigReceiver = null
+            }
         }
 
         override fun onBind(intent: Intent?): IBinder? {

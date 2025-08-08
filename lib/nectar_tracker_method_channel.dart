@@ -179,8 +179,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
       'userType': userType,
       'deviceId': deviceId,
       'domain': domain,
-      // ignore: equal_keys_in_map
-      'username': usernameField, // Note: using usernameField for the key 'username'
+      'usernameField': usernameField,
       'identifier': identifier,
       'skills': skills,
       'status': status,

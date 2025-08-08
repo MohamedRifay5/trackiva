@@ -31,6 +31,8 @@
       android:exported="false"
       android:foregroundServiceType="location"
       android:stopWithTask="false" />
+
+    <!-- No separate MQTT service required when using core Paho client -->
       
     <!-- Boot receiver for auto-restart -->
     <receiver

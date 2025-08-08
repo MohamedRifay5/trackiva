@@ -52,7 +52,7 @@ void main() async {
 
   // Listen to live location events
   tracker.onLocation.listen((location) {
-    print('Location:  {location.latitude},  {location.longitude}');
+    print('Location: ${location.latitude}, ${location.longitude}');
   });
 
   // Start tracking
@@ -88,7 +88,7 @@ await tracker.stop();
 
 ```dart
 final location = await tracker.getCurrentPosition();
-print('Current:  {location?.latitude},  {location?.longitude}');
+print('Current: ${location?.latitude}, ${location?.longitude}');
 ```
 
 ### **Listen to Events**
@@ -125,10 +125,16 @@ await tracker.clearTrackingData();
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
+  <uses-permission android:name="android.permission.INTERNET"/>
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
   ```
-- Foreground service and notification are handled automatically.
+ - Foreground service and notification are handled automatically.
+ - MQTT uses Paho core `MqttAsyncClient` (no Android service). Dependencies declared in the plugin `android/build.gradle`:
+   - `org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5`
+   - `com.google.code.gson:gson:2.10.1`
 
 ### **iOS**
 
