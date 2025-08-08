@@ -395,6 +395,30 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
     }
     
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didPublishAck id: UInt16) {
+        if enableLogging {
+            print("NectarTracker: Message publish acknowledged - ID: \(id)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didSubscribeAck id: UInt16) {
+        if enableLogging {
+            print("NectarTracker: Subscribe acknowledged - ID: \(id)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeAck id: UInt16) {
+        if enableLogging {
+            print("NectarTracker: Unsubscribe acknowledged - ID: \(id)")
+        }
+    }
+    
+    @objc public func mqtt(_ mqtt: CocoaMQTT, didStateChangeTo state: CocoaMQTTConnState) {
+        if enableLogging {
+            print("NectarTracker: MQTT state changed to: \(state)")
+        }
+    }
+    
     private func startBackgroundTask() {
         backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "NectarTrackerBackgroundTask") {
             self.endBackgroundTask()
