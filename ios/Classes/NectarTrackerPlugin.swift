@@ -4,7 +4,7 @@ import CoreLocation
 import UserNotifications
 import CocoaMQTT
 
-public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate {
+public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLocationManagerDelegate, CocoaMQTTDelegate {
     private static let CHANNEL_NAME = "nectar_tracker"
     private static let EVENT_CHANNEL_NAME = "nectar_tracker/updates"
     private static let TAG = "NectarTracker"
@@ -15,6 +15,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     private var currentLocation: CLLocation?
     private var isTracking = false
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    private var isConnecting = false
     
     // Tracking statistics
     private var totalLocations = 0
@@ -127,60 +128,24 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     }
     
     private func setupMqttClient() {
-        let clientID = "nectar_ios_\(UUID().uuidString)"
-        mqttClient = CocoaMQTT(clientID: clientID, host: mqttBroker, port: UInt16(mqttPort))
-        mqttClient?.username = mqttUsername.isEmpty ? nil : mqttUsername
-        mqttClient?.password = mqttPassword.isEmpty ? nil : mqttPassword
-        mqttClient?.autoReconnect = true
-        mqttClient?.logLevel = enableLogging ? .debug : .off
-        mqttClient?.keepAlive = 60
-        mqttClient?.enableSSL = false
+        // Clean up existing connection
+        mqttClient?.disconnect()
         
-        // Set up connection callbacks
-        mqttClient?.didConnectAck = { [weak self] mqtt, ack in
-            if self?.enableLogging == true {
-                print("\(TAG): MQTT connected with ACK: \(ack.rawValue)")
-            }
-            
-            if ack == .accept {
-                self?.mqttConnected = true
-                if self?.enableLogging == true {
-                    print("\(TAG): MQTT connection successful")
-                }
-            } else {
-                self?.mqttConnected = false
-                if self?.enableLogging == true {
-                    print("\(TAG): MQTT connection failed with ACK: \(ack.rawValue)")
-                }
-            }
+        let clientID = "nectar_ios_\(Int(Date().timeIntervalSince1970))"
+        let mqtt = CocoaMQTT(clientID: clientID, host: mqttBroker, port: UInt16(mqttPort))
+        mqtt.username = mqttUsername.isEmpty ? nil : mqttUsername
+        mqtt.password = mqttPassword.isEmpty ? nil : mqttPassword
+        mqtt.keepAlive = 60
+        mqtt.delegate = self
+        mqtt.autoReconnect = true
+        mqtt.logLevel = enableLogging ? .debug : .off
+        
+        // Configure SSL if needed
+        if mqttPort != 1883 {
+            mqtt.enableSSL = true
         }
         
-        mqttClient?.didDisconnect = { [weak self] mqtt, error in
-            self?.mqttConnected = false
-            
-            if self?.enableLogging == true {
-                if let error = error {
-                    print("\(TAG): MQTT disconnected with error: \(error.localizedDescription)")
-                } else {
-                    print("\(TAG): MQTT disconnected")
-                }
-            }
-            
-            // Try to reconnect if still tracking
-            if self?.isTracking == true {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    if self?.isTracking == true {
-                        self?.connectMqtt()
-                    }
-                }
-            }
-        }
-        
-        mqttClient?.didPublishMessage = { [weak self] mqtt, message, id in
-            if self?.enableLogging == true {
-                print("\(TAG): Message published successfully - ID: \(id), Topic: \(message.topic)")
-            }
-        }
+        mqttClient = mqtt
         
         if enableLogging {
             print("\(TAG): MQTT client initialized - Broker: \(mqttBroker):\(mqttPort), ClientID: \(clientID)")
@@ -440,52 +405,75 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     // MARK: - MQTT Management
     
-    private func connectMqtt() {
-        guard let mqttClient = mqttClient else {
+    private func connectMqtt() -> Bool {
+        // Check if already connected
+        if mqttClient?.connState == .connected {
             if enableLogging {
-                print("\(TAG): MQTT client not initialized")
+                print("\(TAG): Already connected to MQTT")
             }
-            return
+            return true
         }
         
-        if mqttClient.connState == .connected {
+        // Validate parameters
+        guard !mqttBroker.isEmpty, mqttPort > 0 else {
             if enableLogging {
-                print("\(TAG): MQTT already connected")
+                print("\(TAG): MQTT connection failed: Missing required parameters")
             }
-            return
+            return false
         }
         
+        isConnecting = true
+        
+        // Create new client
+        let clientID = "nectar_ios_\(Int(Date().timeIntervalSince1970))"
+        mqttClient?.disconnect()
+        let mqtt = CocoaMQTT(clientID: clientID, host: mqttBroker, port: UInt16(mqttPort))
+        mqtt.username = mqttUsername.isEmpty ? nil : mqttUsername
+        mqtt.password = mqttPassword.isEmpty ? nil : mqttPassword
+        mqtt.keepAlive = 60
+        mqtt.delegate = self
+        mqtt.autoReconnect = true
+        mqtt.logLevel = enableLogging ? .debug : .off
+        
+        // Configure SSL if needed
+        if mqttPort != 1883 {
+            mqtt.enableSSL = true
+        }
+        
+        // Store reference before connecting
+        mqttClient = mqtt
+        
+        // Single connection attempt
+        let connected = mqtt.connect()
         if enableLogging {
-            print("\(TAG): Connecting to MQTT broker...")
+            print("\(TAG): MQTT connection attempt result: \(connected)")
         }
         
-        mqttClient.connect()
+        return connected
     }
     
     private func disconnectMqtt() {
-        guard let mqttClient = mqttClient else { return }
-        
-        if enableLogging {
-            print("\(TAG): Disconnecting from MQTT broker")
-        }
-        
-        mqttClient.disconnect()
+        mqttClient?.disconnect()
+        isConnecting = false
         mqttConnected = false
     }
     
-    private func publishToMqtt(location: CLLocation, isBackground: Bool) {
-        guard let mqttClient = mqttClient else {
+    private func publishToMqtt(location: CLLocation, isBackground: Bool) -> Bool {
+        guard connectMqtt(),
+              let mqtt = mqttClient,
+              mqtt.connState == .connected,
+              !userId.isEmpty else {
             if enableLogging {
-                print("\(TAG): MQTT client not initialized")
+                print("\(TAG): MQTT not ready for publishing")
             }
-            return
+            return false
         }
         
-        // Create JSON payload exactly like Android
+        // Create JSON payload exactly like your working implementation
         let payload: [String: Any] = [
             "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
             "id": userId,
-            "batteryLevel": batteryLevel,
+            "batteryLevel": Int(UIDevice.current.batteryLevel * 100),
             "type": userType,
             "time": Int(Date().timeIntervalSince1970 * 1000),
             "deviceId": deviceId,
@@ -501,33 +489,25 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             "jobId": jobId
         ]
         
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-           let jsonString = String(data: data, encoding: .utf8) {
-            
-            if mqttConnected && mqttClient.connState == .connected {
-                // Publish immediately if connected
-                let messageId = mqttClient.publish(mqttTopic, withString: jsonString, qos: .qos0)
-                
+        let fullTopic = "\(mqttTopic)/\(userId)"
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: payload)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
                 if enableLogging {
                     let status = isBackground ? "Background" : "Foreground"
-                    print("\(TAG): MQTT message published (\(status)) - ID: \(messageId)")
-                    print("\(TAG): Location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                    print("\(TAG): Sending location to MQTT (\(status)): \(jsonString)")
                 }
-            } else {
-                if enableLogging {
-                    print("\(TAG): MQTT not connected, skipping publish")
-                }
-                
-                // Try to reconnect
-                if !mqttConnected {
-                    connectMqtt()
-                }
+                mqtt.publish(fullTopic, withString: jsonString, qos: .qos1)
+                return true
             }
-        } else {
+        } catch {
             if enableLogging {
-                print("\(TAG): Failed to serialize MQTT payload")
+                print("\(TAG): Failed to serialize JSON: \(error)")
             }
         }
+        
+        return false
     }
     
     // MARK: - Background Task Management
@@ -638,7 +618,11 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         eventSink?(foregroundData)
         
         // Publish to MQTT
-        publishToMqtt(location: location, isBackground: false)
+        if !publishToMqtt(location: location, isBackground: false) {
+            if enableLogging {
+                print("\(TAG): Failed to publish location to MQTT")
+            }
+        }
         
         if enableBackgroundMode && isTracking {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -664,7 +648,11 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                     self.eventSink?(backgroundData)
 
                     // Also publish to MQTT when in background
-                    self.publishToMqtt(location: location, isBackground: true)
+                    if !self.publishToMqtt(location: location, isBackground: true) {
+                        if self.enableLogging {
+                            print("\(TAG): Failed to publish background location to MQTT")
+                        }
+                    }
                 }
             }
         }
@@ -710,6 +698,106 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     public func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
         if enableLogging {
             print("\(TAG): Location updates resumed")
+        }
+    }
+    
+    // MARK: - CocoaMQTTDelegate
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
+        if enableLogging {
+            print("\(TAG): MQTT Connected: \(ack)")
+        }
+        isConnecting = true
+        
+        if ack == .accept {
+            mqttConnected = true
+            if enableLogging {
+                print("\(TAG): MQTT connection successful")
+            }
+        } else {
+            mqttConnected = false
+            if enableLogging {
+                print("\(TAG): MQTT connection failed with ACK: \(ack.rawValue)")
+            }
+        }
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didPublishMessage message: CocoaMQTTMessage, id: UInt16) {
+        if enableLogging {
+            print("\(TAG): Message published - ID: \(id), Topic: \(message.topic)")
+        }
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didPublishAck id: UInt16) {
+        if enableLogging {
+            print("\(TAG): Message publish acknowledged - ID: \(id)")
+        }
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16) {
+        if enableLogging {
+            print("\(TAG): Received message - ID: \(id), Topic: \(message.topic), Payload: \(message.string ?? "")")
+        }
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics success: NSDictionary, failed: [String]) {
+        if enableLogging {
+            print("\(TAG): Subscribed to topics - Success: \(success), Failed: \(failed)")
+        }
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopics topics: [String]) {
+        if enableLogging {
+            print("\(TAG): Unsubscribed from topics: \(topics)")
+        }
+    }
+    
+    public func mqttDidPing(_ mqtt: CocoaMQTT) {
+        if enableLogging {
+            print("\(TAG): MQTT did ping")
+        }
+    }
+    
+    public func mqttDidReceivePong(_ mqtt: CocoaMQTT) {
+        if enableLogging {
+            print("\(TAG): MQTT did receive pong")
+        }
+    }
+    
+    public func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
+        mqttConnected = false
+        isConnecting = false
+        
+        if enableLogging {
+            print("\(TAG): MQTT did disconnect with error: \(String(describing: err))")
+            print("\(TAG): MQTT Disconnected: \(err?.localizedDescription ?? "No error")")
+        }
+        
+        // Try to reconnect if still tracking
+        if isTracking {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                if self.isTracking {
+                    self.connectMqtt()
+                }
+            }
+        }
+    }
+    
+    public func _console(_ mqtt: CocoaMQTT, didConnect host: String, port: Int) {
+        if enableLogging {
+            print("\(TAG): MQTT Console - Connected to \(host):\(port)")
+        }
+    }
+    
+    public func _console(_ mqtt: CocoaMQTT, didSubscribeTopic topic: String) {
+        if enableLogging {
+            print("\(TAG): MQTT Console - Subscribed to topic: \(topic)")
+        }
+    }
+    
+    public func _console(_ mqtt: CocoaMQTT, didUnsubscribeTopic topic: String) {
+        if enableLogging {
+            print("\(TAG): MQTT Console - Unsubscribed from topic: \(topic)")
         }
     }
 }
