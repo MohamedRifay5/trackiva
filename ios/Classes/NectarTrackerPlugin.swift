@@ -784,8 +784,6 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
         
         switch mqtt.connState {
-        case .initial:
-            return "Initial"
         case .connecting:
             return "Connecting"
         case .connected:
