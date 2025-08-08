@@ -128,6 +128,20 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
   }
 
   @override
+  Future<Map<String, dynamic>> getMqttStatus() async {
+    try {
+      final result = await methodChannel.invokeMethod('getMqttStatus');
+      if (result != null) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {};
+    } catch (e) {
+      debugPrint('Error getting MQTT status: $e');
+      return {};
+    }
+  }
+
+  @override
   Stream<LocationData> get onLocationUpdate {
     _locationStream ??= eventChannel.receiveBroadcastStream().map((data) {
       try {

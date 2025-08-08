@@ -95,6 +95,10 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
     throw UnimplementedError('clearTrackingData() has not been implemented.');
   }
 
+  Future<Map<String, dynamic>> getMqttStatus() {
+    throw UnimplementedError('getMqttStatus() has not been implemented.');
+  }
+
   Stream<LocationData> get onLocationUpdate {
     throw UnimplementedError('onLocationUpdate has not been implemented.');
   }

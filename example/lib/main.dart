@@ -460,6 +460,27 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _checkMqttStatus() async {
+    try {
+      final status = await _nectarTracker.getMqttStatus();
+      setState(() {
+        _status = 'MQTT Status: ${status['connected'] ? "Connected" : "Disconnected"} (${status['connectionState']})';
+      });
+      _addLog(
+        _actionLogs,
+        '[Action] MQTT Status: ${status['connected'] ? "Connected" : "Disconnected"} (${status['connectionState']})',
+      );
+      _addLog(_actionLogs, '[Action] MQTT Broker: ${status['broker']}:${status['port']}');
+      _addLog(_actionLogs, '[Action] MQTT Topic: ${status['topic']}');
+      _addLog(_actionLogs, '[Action] MQTT UserId: ${status['userId']}');
+    } catch (e) {
+      setState(() {
+        _status = 'Check MQTT status failed: $e';
+      });
+      _addLog(_actionLogs, '[Error] Check MQTT status failed: $e');
+    }
+  }
+
   void _updateConfig() {
     showDialog(
       context: context,
@@ -996,6 +1017,17 @@ class _MyAppState extends State<MyApp> {
                             child: ElevatedButton(
                               onPressed: _isConfigured ? _clearTrackingData : null,
                               child: Text('Clear Data'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _isConfigured ? _checkMqttStatus : null,
+                              child: Text('Check MQTT'),
                             ),
                           ),
                         ],

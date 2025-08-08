@@ -352,6 +352,18 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             "getPlatformVersion" -> {
                 result.success("Android ${android.os.Build.VERSION.RELEASE}")
             }
+            "getMqttStatus" -> {
+                val status = mapOf(
+                    "connected" to (LocationForegroundService.mqttClient?.isConnected ?: false),
+                    "connectionState" to if (LocationForegroundService.mqttClient?.isConnected == true) "Connected" else "Disconnected",
+                    "broker" to mqttBroker,
+                    "port" to mqttPort,
+                    "topic" to mqttTopic,
+                    "userId" to userId,
+                    "isConnecting" to false
+                )
+                result.success(status)
+            }
             "setMqttConfigAndDetails" -> {
                 val args = call.arguments as? Map<String, Any>
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

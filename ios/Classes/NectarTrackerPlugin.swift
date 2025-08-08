@@ -11,7 +11,7 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     private var mqttClient: CocoaMQTT?
     private var eventSink: FlutterEventSink?
-    private var locationManager: CLLocationManager?
+    private var locationManager: CLLocationManager? 
     private var currentLocation: CLLocation?
     private var isTracking = false
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
@@ -73,6 +73,11 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         super.init()
         loadMqttConfig()
         setupMqttClient()
+        
+        if enableLogging {
+            print("\(TAG): NectarTrackerPlugin initialized")
+            print("\(TAG): MQTT Config - Broker: \(mqttBroker):\(mqttPort), Topic: \(mqttTopic)")
+        }
     }
     
     private func loadMqttConfig() {
@@ -140,9 +145,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         mqtt.autoReconnect = true
         mqtt.logLevel = enableLogging ? .debug : .off
         
-        // Configure SSL if needed
-        if mqttPort != 1883 {
+        // Configure SSL correctly - only for SSL ports (8883, 8884)
+        if mqttPort == 8883 || mqttPort == 8884 {
             mqtt.enableSSL = true
+            // Additional SSL settings for better compatibility
+            mqtt.allowUntrustCACertificate = true
+            if enableLogging {
+                print("\(TAG): SSL enabled for port \(mqttPort)")
+            }
         }
         
         mqttClient = mqtt
@@ -359,6 +369,18 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         case "getPlatformVersion":
             result("iOS " + UIDevice.current.systemVersion)
             
+        case "getMqttStatus":
+            let status: [String: Any] = [
+                "connected": isMqttConnected(),
+                "connectionState": getMqttConnectionState(),
+                "broker": mqttBroker,
+                "port": mqttPort,
+                "topic": mqttTopic,
+                "userId": userId,
+                "isConnecting": isConnecting
+            ]
+            result(status)
+            
         case "setMqttConfigAndDetails":
             guard let args = call.arguments as? [String: Any] else {
                 result(FlutterError(code: "INVALID_ARGUMENTS", message: "Invalid arguments", details: nil))
@@ -414,6 +436,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             return true
         }
         
+        // Check if already connecting
+        if isConnecting {
+            if enableLogging {
+                print("\(TAG): Already attempting to connect to MQTT")
+            }
+            return false
+        }
+        
         // Validate parameters
         guard !mqttBroker.isEmpty, mqttPort > 0 else {
             if enableLogging {
@@ -435,9 +465,14 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         mqtt.autoReconnect = true
         mqtt.logLevel = enableLogging ? .debug : .off
         
-        // Configure SSL if needed
-        if mqttPort != 1883 {
+        // Configure SSL correctly - only for SSL ports (8883, 8884)
+        if mqttPort == 8883 || mqttPort == 8884 {
             mqtt.enableSSL = true
+            // Additional SSL settings for better compatibility
+            mqtt.allowUntrustCACertificate = true
+            if enableLogging {
+                print("\(TAG): SSL enabled for port \(mqttPort)")
+            }
         }
         
         // Store reference before connecting
@@ -449,22 +484,55 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             print("\(TAG): MQTT connection attempt result: \(connected)")
         }
         
+        // Reset connecting flag if connection attempt failed immediately
+        if !connected {
+            isConnecting = false
+        }
+        
         return connected
     }
     
     private func disconnectMqtt() {
+        if enableLogging {
+            print("\(TAG): Disconnecting MQTT")
+        }
+        
         mqttClient?.disconnect()
         isConnecting = false
         mqttConnected = false
+        
+        if enableLogging {
+            print("\(TAG): MQTT disconnected")
+        }
     }
     
     private func publishToMqtt(location: CLLocation, isBackground: Bool) -> Bool {
-        guard connectMqtt(),
-              let mqtt = mqttClient,
-              mqtt.connState == .connected,
-              !userId.isEmpty else {
+        // Check if MQTT is connected
+        guard let mqtt = mqttClient else {
             if enableLogging {
-                print("\(TAG): MQTT not ready for publishing")
+                print("\(TAG): MQTT client not initialized")
+            }
+            return false
+        }
+        
+        // Check connection state
+        guard mqtt.connState == .connected else {
+            if enableLogging {
+                print("\(TAG): MQTT not connected, current state: \(mqtt.connState)")
+            }
+            // Try to reconnect if not connected
+            if isTracking {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.connectMqtt()
+                }
+            }
+            return false
+        }
+        
+        // Validate required fields
+        guard !userId.isEmpty else {
+            if enableLogging {
+                print("\(TAG): MQTT publish failed: userId is empty")
             }
             return false
         }
@@ -500,6 +568,10 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                 }
                 mqtt.publish(fullTopic, withString: jsonString, qos: .qos1)
                 return true
+            } else {
+                if enableLogging {
+                    print("\(TAG): Failed to convert JSON data to string")
+                }
             }
         } catch {
             if enableLogging {
@@ -701,13 +773,39 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
     }
     
+    // MARK: - MQTT Status Methods
+    
+    private func isMqttConnected() -> Bool {
+        return mqttClient?.connState == .connected
+    }
+    
+    private func getMqttConnectionState() -> String {
+        guard let mqtt = mqttClient else {
+            return "Not Initialized"
+        }
+        
+        switch mqtt.connState {
+        case .initial:
+            return "Initial"
+        case .connecting:
+            return "Connecting"
+        case .connected:
+            return "Connected"
+        case .disconnected:
+            return "Disconnected"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+    
     // MARK: - CocoaMQTTDelegate
     
     public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
+        isConnecting = false
+        
         if enableLogging {
             print("\(TAG): MQTT Connected: \(ack)")
         }
-        isConnecting = true
         
         if ack == .accept {
             mqttConnected = true
@@ -718,6 +816,24 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             mqttConnected = false
             if enableLogging {
                 print("\(TAG): MQTT connection failed with ACK: \(ack.rawValue)")
+                switch ack {
+                case .accept:
+                    print("\(TAG): Connection accepted")
+                case .unacceptableProtocolVersion:
+                    print("\(TAG): Unacceptable protocol version")
+                case .identifierRejected:
+                    print("\(TAG): Identifier rejected")
+                case .serverUnavailable:
+                    print("\(TAG): Server unavailable")
+                case .badUsernameOrPassword:
+                    print("\(TAG): Bad username or password")
+                case .notAuthorized:
+                    print("\(TAG): Not authorized")
+                case .reserved:
+                    print("\(TAG): Reserved")
+                @unknown default:
+                    print("\(TAG): Unknown connection error")
+                }
             }
         }
     }
@@ -773,10 +889,13 @@ public class NectarTrackerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             print("\(TAG): MQTT Disconnected: \(err?.localizedDescription ?? "No error")")
         }
         
-        // Try to reconnect if still tracking
-        if isTracking {
+        // Try to reconnect if still tracking and not manually disconnected
+        if isTracking && err != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 if self.isTracking {
+                    if self.enableLogging {
+                        print("\(TAG): Attempting to reconnect MQTT after disconnect")
+                    }
                     self.connectMqtt()
                 }
             }

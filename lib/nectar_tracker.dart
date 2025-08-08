@@ -268,6 +268,20 @@ class NectarTracker {
     }
   }
 
+  /// Get MQTT connection status
+  Future<Map<String, dynamic>> getMqttStatus() async {
+    debugPrint('[NectarTracker] getMqttStatus() called');
+    try {
+      final status = await NectarTrackerPlatform.instance.getMqttStatus();
+      debugPrint('[NectarTracker] getMqttStatus() result: $status');
+      return status;
+    } catch (e, stack) {
+      developer.log('Failed to get MQTT status: $e', name: 'NectarTracker', level: 900);
+      debugPrint('[NectarTracker] getMqttStatus() error: $e\n$stack');
+      return {};
+    }
+  }
+
   // Event streams (similar to flutter_background_geolocation events)
 
   /// Fired whenever a location is recorded
