@@ -481,6 +481,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             private const val TAG = "LocationForegroundService"
             var isRunning = false
                 private set
+            var mqttClient: MqttAsyncClient? = null
             private var notificationTitle = "Location Tracking"
             private var notificationText = "Tracking your location in background"
             private var interval = 5000L
@@ -664,6 +665,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 val brokerUrl = "$scheme://$mqttBroker:$mqttPort"
                 val clientId = "nectar_android_" + System.currentTimeMillis()
                 mqttClient = MqttAsyncClient(brokerUrl, clientId, MemoryPersistence())
+                LocationForegroundService.mqttClient = mqttClient
                 mqttClient?.setCallback(object : MqttCallback {
                     override fun connectionLost(cause: Throwable?) {
                         Log.e(TAG, "MQTT connection lost: ${cause?.message}")
@@ -767,6 +769,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             sharedPrefs.edit().putBoolean("tracking_enabled", false).apply()
             // Disconnect MQTT
             mqttClient?.disconnect()
+            LocationForegroundService.mqttClient = null
             mqttConfigReceiver?.let {
                 LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
                 mqttConfigReceiver = null
