@@ -131,10 +131,10 @@ await tracker.clearTrackingData();
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
   ```
- - Foreground service and notification are handled automatically.
- - MQTT uses Paho core `MqttAsyncClient` (no Android service). Dependencies declared in the plugin `android/build.gradle`:
-   - `org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5`
-   - `com.google.code.gson:gson:2.10.1`
+- Foreground service and notification are handled automatically.
+- MQTT uses Paho core `MqttAsyncClient` (no Android service). Dependencies declared in the plugin `android/build.gradle`:
+  - `org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5`
+  - `com.google.code.gson:gson:2.10.1`
 
 ### **iOS**
 

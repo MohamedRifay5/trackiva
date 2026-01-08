@@ -491,7 +491,7 @@ class _MyAppState extends State<MyApp> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<DesiredAccuracy>(
-                value: _config.desiredAccuracy,
+                initialValue: _config.desiredAccuracy,
                 decoration: InputDecoration(labelText: 'Desired Accuracy'),
                 items: DesiredAccuracy.values.map((accuracy) {
                   return DropdownMenuItem(
