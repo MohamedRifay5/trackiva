@@ -22,6 +22,9 @@
   
   <!-- Boot completed permission for auto-restart -->
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  
+  <!-- Overlay permission for chat head -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
   <application>
     <!-- Location foreground service -->
@@ -31,6 +34,12 @@
       android:exported="false"
       android:foregroundServiceType="location"
       android:stopWithTask="false" />
+    
+    <!-- Chat head service -->
+    <service
+      android:name=".NectarTrackerPlugin$ChatHeadService"
+      android:enabled="true"
+      android:exported="false" />
 
     <!-- No separate MQTT service required when using core Paho client -->
       

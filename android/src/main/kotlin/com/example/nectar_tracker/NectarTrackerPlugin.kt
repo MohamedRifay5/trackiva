@@ -1,5 +1,6 @@
 package com.example.nectar_tracker
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,13 +10,24 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.location.Location
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.ImageView
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -202,6 +214,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 val enableBatteryOptimization = call.argument<Boolean>("enableBatteryOptimization") ?: false
                 val notificationIcon = call.argument<String>("notificationIcon")
                 val notificationColor = call.argument<String>("notificationColor")
+                val chatHeadIcon = call.argument<String>("chatHeadIcon")
                 enableLogging = call.argument<Boolean>("enableLogging") ?: true
                 showLocationNotifications = call.argument<Boolean>("showLocationNotifications") ?: false
 
@@ -214,6 +227,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                     interval, fastestInterval, distanceFilter,
                     enableBackgroundMode, enableHighAccuracy, enableBatteryOptimization
                 )
+                LocationForegroundService.setChatHeadIcon(chatHeadIcon)
                 result.success(null)
             }
             "startTracking" -> {
@@ -235,6 +249,31 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                     return
                 }
                 
+                // Check overlay permission for chat head
+                val overlayPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Settings.canDrawOverlays(context)
+                } else {
+                    true
+                }
+                
+                if (!overlayPermissionGranted) {
+                    if (enableLogging) {
+                        Log.d(TAG, "Overlay permission not granted, requesting...")
+                    }
+                    try {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        // Still start location tracking even without overlay permission
+                        // Chat head will start automatically when permission is granted
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to open overlay permission settings: ${e.message}")
+                    }
+                }
+                
                 try {
                     val serviceIntent = Intent(context, LocationForegroundService::class.java)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -243,8 +282,14 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                         context.startService(serviceIntent)
                     }
                     
+                    // Chat head will be started by LocationForegroundService if permission is granted
+                    // If permission is not granted yet, it will be started when permission is granted
+                    
                     if (enableLogging) {
                         Log.d(TAG, "Location tracking started successfully")
+                        if (!overlayPermissionGranted) {
+                            Log.d(TAG, "Note: Chat head will appear after overlay permission is granted")
+                        }
                     }
                     
                     result.success(null)
@@ -260,6 +305,10 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 
                 val stopIntent = Intent(context, LocationForegroundService::class.java)
                 context.stopService(stopIntent)
+                
+                // Stop chat head service
+                val chatHeadStopIntent = Intent(context, ChatHeadService::class.java)
+                context.stopService(chatHeadStopIntent)
                 
                 if (enableLogging) {
                     Log.d(TAG, "Location tracking stopped successfully")
@@ -363,6 +412,44 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                     "isConnecting" to false
                 )
                 result.success(status)
+            }
+            "canDrawOverlays" -> {
+                result.success(canDrawOverlays())
+            }
+            "requestOverlayPermission" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!Settings.canDrawOverlays(context)) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        result.success(false)
+                    } else {
+                        result.success(true)
+                    }
+                } else {
+                    result.success(true)
+                }
+            }
+            "startChatHeadService" -> {
+                // Manually start chat head service (useful after permission is granted)
+                if (canDrawOverlays()) {
+                    try {
+                        val chatHeadIntent = Intent(context, ChatHeadService::class.java)
+                        context.startService(chatHeadIntent)
+                        if (enableLogging) {
+                            Log.d(TAG, "Chat head service started manually")
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to start chat head service: ${e.message}")
+                        result.error("CHAT_HEAD_START_FAILED", "Failed to start chat head: ${e.message}", null)
+                    }
+                } else {
+                    result.error("OVERLAY_PERMISSION_NEEDED", "Overlay permission not granted", null)
+                }
             }
             "setMqttConfigAndDetails" -> {
                 val args = call.arguments as? Map<String, Any>
@@ -492,6 +579,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             private var enableBatteryOptimization = false
             private var currentAccuracy = "medium"
             private var currentLocation: Location? = null
+            private var chatHeadIconName: String? = null
 
             fun setNotificationText(title: String, text: String) {
                 notificationTitle = title
@@ -509,6 +597,12 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 enableHighAccuracy = highAccuracy
                 enableBatteryOptimization = batteryOptimization
             }
+
+            fun setChatHeadIcon(iconName: String?) {
+                chatHeadIconName = iconName
+            }
+
+            fun getChatHeadIconName(): String? = chatHeadIconName
 
             fun getCurrentLocation(callback: (Location?) -> Unit) {
                 if (isRunning) {
@@ -540,6 +634,9 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             loadMqttConfig()
             initMqttClient()
 
+            // Start chat head service if overlay permission is granted
+            startChatHeadService()
+
             // Listen for runtime config updates
             mqttConfigReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
@@ -559,6 +656,10 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             val notification = createNotification()
             startForeground(NOTIFICATION_ID, notification)
             startLocationUpdates()
+            
+            // Ensure chat head service is running (in case service was restarted)
+            startChatHeadService()
+            
             return START_STICKY
         }
 
@@ -694,8 +795,12 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
 
         private fun reconnectMqttClient() {
             try {
-                mqttClient?.disconnectForcibly(100)
-            } catch (_: Exception) {}
+                if (mqttClient?.isConnected == true) {
+                    mqttClient?.disconnectForcibly(100)
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Error disconnecting MQTT during reconnect: ${e.message}")
+            }
             initMqttClient()
         }
 
@@ -764,15 +869,294 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             fusedLocationClient.removeLocationUpdates(locationCallback)
             releaseWakeLock()
             
+            // Stop chat head service
+            stopChatHeadService()
+            
             // Clear tracking state
             val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("tracking_enabled", false).apply()
-            // Disconnect MQTT
-            mqttClient?.disconnect()
-            LocationForegroundService.mqttClient = null
+            // Disconnect MQTT safely
+            try {
+                if (mqttClient?.isConnected == true) {
+                    mqttClient?.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error disconnecting MQTT: ${e.message}")
+            } finally {
+                mqttClient = null
+                LocationForegroundService.mqttClient = null
+            }
             mqttConfigReceiver?.let {
                 LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
                 mqttConfigReceiver = null
+            }
+        }
+
+        private fun canDrawOverlays(): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(this)
+            } else {
+                true
+            }
+        }
+
+        private fun startChatHeadService() {
+            if (canDrawOverlays()) {
+                try {
+                    // Check if chat head service is already running
+                    val chatHeadRunning = try {
+                        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                        val runningServices = activityManager.getRunningServices(Integer.MAX_VALUE)
+                        runningServices.any { 
+                            it.service.className == ChatHeadService::class.java.name 
+                        }
+                    } catch (e: Exception) {
+                        false
+                    }
+                    
+                    if (!chatHeadRunning) {
+                        val chatHeadIntent = Intent(this, ChatHeadService::class.java)
+                        // Use startService instead of startForegroundService for chat head
+                        // since it's not a foreground service itself
+                        startService(chatHeadIntent)
+                        Log.d(TAG, "Chat head service started from foreground service")
+                    } else {
+                        Log.d(TAG, "Chat head service already running")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start chat head service: ${e.message}")
+                }
+            } else {
+                Log.d(TAG, "Overlay permission not granted, chat head will not be shown. Grant permission and restart tracking or call startChatHeadService()")
+            }
+        }
+
+        private fun stopChatHeadService() {
+            try {
+                val chatHeadIntent = Intent(this, ChatHeadService::class.java)
+                stopService(chatHeadIntent)
+                Log.d(TAG, "Chat head service stopped")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop chat head service: ${e.message}")
+            }
+        }
+
+        override fun onBind(intent: Intent?): IBinder? {
+            return null
+        }
+    }
+
+    // Helper method to check overlay permission
+    private fun canDrawOverlays(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+
+    class ChatHeadService : Service() {
+        private companion object {
+            const val TAG = "ChatHeadService"
+        }
+        
+        private var windowManager: WindowManager? = null
+        private var chatHeadView: View? = null
+        private var params: WindowManager.LayoutParams? = null
+        private var initialX = 0
+        private var initialY = 0
+        private var initialTouchX = 0f
+        private var initialTouchY = 0f
+
+        override fun onCreate() {
+            super.onCreate()
+            createChatHeadView()
+        }
+
+        private fun createChatHeadView() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Log.e(TAG, "Overlay permission not granted")
+                stopSelf()
+                return
+            }
+
+            // Don't recreate if already exists
+            if (chatHeadView != null) {
+                return
+            }
+
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+            // Create chat head view programmatically
+            val size = (56 * resources.displayMetrics.density).toInt()
+            chatHeadView = ImageView(this).apply {
+                // Set icon from configuration or use default
+                val iconName = LocationForegroundService.getChatHeadIconName()
+                if (!iconName.isNullOrEmpty()) {
+                    try {
+                        // Try to get resource ID from name (e.g., "ic_launcher" or "drawable/ic_launcher")
+                        val resourceName = if (iconName.contains("/")) {
+                            iconName.split("/").last()
+                        } else {
+                            iconName
+                        }
+                        val resourceId = resources.getIdentifier(
+                            resourceName,
+                            "drawable",
+                            packageName
+                        )
+                        if (resourceId != 0) {
+                            setImageResource(resourceId)
+                        } else {
+                            // Fallback to default if resource not found
+                            Log.w(TAG, "Chat head icon '$iconName' not found, using default")
+                            setImageResource(android.R.drawable.ic_menu_mylocation)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error loading chat head icon: ${e.message}")
+                        setImageResource(android.R.drawable.ic_menu_mylocation)
+                    }
+                } else {
+                    // Use default icon
+                    setImageResource(android.R.drawable.ic_menu_mylocation)
+                }
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                
+                // Create circular background
+                val drawable = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#4CAF50")) // Green color
+                    setSize(size, size)
+                }
+                background = drawable
+                
+                // Add padding
+                setPadding(
+                    (8 * resources.displayMetrics.density).toInt(),
+                    (8 * resources.displayMetrics.density).toInt(),
+                    (8 * resources.displayMetrics.density).toInt(),
+                    (8 * resources.displayMetrics.density).toInt()
+                )
+                
+                // Set size
+                layoutParams = android.view.ViewGroup.LayoutParams(size, size)
+                
+                var clickStartTime = 0L
+                var isClick = false
+                
+                // Add touch listener for dragging and clicking
+                setOnTouchListener(object : View.OnTouchListener {
+                    override fun onTouch(v: View?, event: MotionEvent?): Boolean {
+                        when (event?.action) {
+                            MotionEvent.ACTION_DOWN -> {
+                                initialX = params?.x ?: 0
+                                initialY = params?.y ?: 0
+                                initialTouchX = event.rawX
+                                initialTouchY = event.rawY
+                                clickStartTime = System.currentTimeMillis()
+                                isClick = true
+                                // Add visual feedback
+                                alpha = 0.7f
+                                return true
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                val deltaX = kotlin.math.abs(event.rawX - initialTouchX)
+                                val deltaY = kotlin.math.abs(event.rawY - initialTouchY)
+                                
+                                // If moved more than 10 pixels, it's a drag, not a click
+                                if (deltaX > 10 || deltaY > 10) {
+                                    isClick = false
+                                }
+                                
+                                params?.x = initialX + (event.rawX - initialTouchX).toInt()
+                                params?.y = initialY + (event.rawY - initialTouchY).toInt()
+                                
+                                // Keep within screen bounds
+                                val displayMetrics = resources.displayMetrics
+                                params?.x = params?.x?.coerceIn(0, displayMetrics.widthPixels - size) ?: 0
+                                params?.y = params?.y?.coerceIn(0, displayMetrics.heightPixels - size) ?: 0
+                                
+                                windowManager?.updateViewLayout(chatHeadView, params)
+                                return true
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                alpha = 1.0f
+                                val clickDuration = System.currentTimeMillis() - clickStartTime
+                                
+                                // If it was a click (short duration and minimal movement)
+                                if (isClick && clickDuration < 200) {
+                                    // Show a toast or perform action
+                                    android.widget.Toast.makeText(
+                                        this@ChatHeadService,
+                                        "Nectar Tracker Active",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                return true
+                            }
+                        }
+                        return false
+                    }
+                })
+            }
+
+            // Set window parameters
+            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+            params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = 0
+                y = 100
+            }
+
+            try {
+                windowManager?.addView(chatHeadView, params)
+                Log.d(TAG, "Chat head added to window")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add chat head: ${e.message}")
+                stopSelf()
+            }
+        }
+
+        override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+            // If view was removed (e.g., system killed it), recreate it
+            if (chatHeadView == null) {
+                createChatHeadView()
+            } else {
+                // Check if view is still attached to window manager
+                try {
+                    windowManager?.updateViewLayout(chatHeadView, params)
+                } catch (e: Exception) {
+                    // View was removed, recreate it
+                    Log.d(TAG, "Chat head view was removed, recreating...")
+                    chatHeadView = null
+                    params = null
+                    createChatHeadView()
+                }
+            }
+            return START_STICKY
+        }
+
+        override fun onDestroy() {
+            super.onDestroy()
+            try {
+                chatHeadView?.let {
+                    windowManager?.removeView(it)
+                }
+                Log.d(TAG, "Chat head removed from window")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing chat head: ${e.message}")
             }
         }
 

@@ -22,6 +22,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
     bool enableBatteryOptimization = false,
     String? notificationIcon,
     String? notificationColor,
+    String? chatHeadIcon,
     bool enableLogging = true,
     bool showLocationNotifications = false,
   }) async {
@@ -36,6 +37,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
       'enableBatteryOptimization': enableBatteryOptimization,
       'notificationIcon': notificationIcon,
       'notificationColor': notificationColor,
+      'chatHeadIcon': chatHeadIcon,
       'enableLogging': enableLogging,
       'showLocationNotifications': showLocationNotifications,
     });
@@ -43,7 +45,19 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
 
   @override
   Future<void> startTracking() async {
-    await methodChannel.invokeMethod('startTracking');
+    try {
+      await methodChannel.invokeMethod('startTracking');
+    } on PlatformException catch (e) {
+      if (e.code == 'OVERLAY_PERMISSION_NEEDED') {
+        debugPrint(
+          '[NectarTracker] Overlay permission needed. Settings opened.',
+        );
+        // Re-throw so the caller can handle it
+        rethrow;
+      }
+      // Re-throw other errors
+      rethrow;
+    }
   }
 
   @override
@@ -72,7 +86,8 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
 
   @override
   Future<bool> isLocationServiceEnabled() async {
-    return await methodChannel.invokeMethod('isLocationServiceEnabled') ?? false;
+    return await methodChannel.invokeMethod('isLocationServiceEnabled') ??
+        false;
   }
 
   @override
@@ -96,7 +111,10 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
   Future<bool> setLocationAccuracy(LocationAccuracy accuracy) async {
     try {
       final accuracyString = accuracy.toString().split('.').last;
-      return await methodChannel.invokeMethod('setLocationAccuracy', {'accuracy': accuracyString}) ?? false;
+      return await methodChannel.invokeMethod('setLocationAccuracy', {
+            'accuracy': accuracyString,
+          }) ??
+          false;
     } catch (e) {
       debugPrint('Error setting location accuracy: $e');
       return false;
@@ -156,7 +174,9 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+    final version = await methodChannel.invokeMethod<String>(
+      'getPlatformVersion',
+    );
     return version;
   }
 
@@ -203,5 +223,36 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
       'mobile': mobile,
       'jobId': jobId,
     });
+  }
+
+  @override
+  Future<bool> canDrawOverlays() async {
+    try {
+      return await methodChannel.invokeMethod('canDrawOverlays') ?? false;
+    } catch (e) {
+      debugPrint('Error checking overlay permission: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> requestOverlayPermission() async {
+    try {
+      return await methodChannel.invokeMethod('requestOverlayPermission') ??
+          false;
+    } catch (e) {
+      debugPrint('Error requesting overlay permission: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> startChatHeadService() async {
+    try {
+      return await methodChannel.invokeMethod('startChatHeadService') ?? false;
+    } catch (e) {
+      debugPrint('Error starting chat head service: $e');
+      return false;
+    }
   }
 }

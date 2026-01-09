@@ -30,6 +30,7 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
     bool enableBatteryOptimization = false,
     String? notificationIcon,
     String? notificationColor,
+    String? chatHeadIcon,
     bool enableLogging = true,
     bool showLocationNotifications = false,
   }) {
@@ -76,7 +77,9 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
   }
 
   Future<bool> isLocationServiceEnabled() {
-    throw UnimplementedError('isLocationServiceEnabled() has not been implemented.');
+    throw UnimplementedError(
+      'isLocationServiceEnabled() has not been implemented.',
+    );
   }
 
   Future<LocationAccuracy> getLocationAccuracy() {
@@ -101,6 +104,27 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
 
   Stream<LocationData> get onLocationUpdate {
     throw UnimplementedError('onLocationUpdate has not been implemented.');
+  }
+
+  /// Check if overlay permission is granted (Android only)
+  Future<bool> canDrawOverlays() {
+    throw UnimplementedError('canDrawOverlays() has not been implemented.');
+  }
+
+  /// Request overlay permission (Android only)
+  /// Opens system settings for the user to grant permission
+  Future<bool> requestOverlayPermission() {
+    throw UnimplementedError(
+      'requestOverlayPermission() has not been implemented.',
+    );
+  }
+
+  /// Manually start chat head service (Android only)
+  /// Useful after overlay permission is granted
+  Future<bool> startChatHeadService() {
+    throw UnimplementedError(
+      'startChatHeadService() has not been implemented.',
+    );
   }
 }
 
@@ -156,7 +180,8 @@ class LocationData {
     if (value == null) return DateTime.now();
     if (value is DateTime) return value;
     if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
-    if (value is double) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    if (value is double)
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
     return DateTime.now();
   }
 

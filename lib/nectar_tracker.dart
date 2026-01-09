@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import 'nectar_tracker_platform_interface.dart';
 
@@ -75,6 +76,7 @@ class NectarTracker {
         enableBatteryOptimization: config.enableBatteryOptimization,
         notificationIcon: config.notificationIcon,
         notificationColor: config.notificationColor,
+        chatHeadIcon: config.chatHeadIcon,
         enableLogging: config.debug,
         showLocationNotifications: config.showLocationNotifications,
       );
@@ -154,6 +156,8 @@ class NectarTracker {
   }
 
   /// Start location tracking
+  /// Returns true if started successfully, false otherwise
+  /// Throws PlatformException with code 'OVERLAY_PERMISSION_NEEDED' if overlay permission is needed
   Future<bool> start() async {
     debugPrint('[NectarTracker] start() called');
     try {
@@ -163,6 +167,16 @@ class NectarTracker {
       developer.log('NectarTracker: Location tracking started successfully', name: 'NectarTracker');
       debugPrint('[NectarTracker] start() success');
       return true;
+    } on PlatformException catch (e) {
+      if (e.code == 'OVERLAY_PERMISSION_NEEDED') {
+        developer.log('NectarTracker: Overlay permission needed. User should grant permission and try again.', name: 'NectarTracker');
+        debugPrint('[NectarTracker] Overlay permission needed: ${e.message}');
+        // Re-throw so caller can handle it appropriately
+        rethrow;
+      }
+      developer.log('Failed to start tracking: $e', name: 'NectarTracker', level: 900);
+      debugPrint('[NectarTracker] start() error: $e');
+      return false;
     } catch (e, stack) {
       developer.log('Failed to start tracking: $e', name: 'NectarTracker', level: 900);
       debugPrint('[NectarTracker] start() error: $e\n$stack');
@@ -362,6 +376,7 @@ class NectarTrackerConfig {
   final int fastestInterval;
   final String? notificationIcon;
   final String? notificationColor;
+  final String? chatHeadIcon;
   final bool showLocationNotifications;
 
   const NectarTrackerConfig({
@@ -378,6 +393,7 @@ class NectarTrackerConfig {
     this.fastestInterval = 3000,
     this.notificationIcon,
     this.notificationColor,
+    this.chatHeadIcon,
     this.showLocationNotifications = false,
   });
 }
