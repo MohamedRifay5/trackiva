@@ -1,6 +1,6 @@
 name: trackiva
 description: "A comprehensive Flutter plugin for location tracking in foreground, background, and terminated states with MQTT, GraphQL, and HTTP support."
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/MohamedRifay5/trackiva
 repository: https://github.com/MohamedRifay5/trackiva
 issue_tracker: https://github.com/MohamedRifay5/trackiva/issues
