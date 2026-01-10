@@ -103,7 +103,7 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
         // Clean up existing connection
         mqttClient?.disconnect()
         
-        let clientID = "nectar_ios_\(Int(Date().timeIntervalSince1970))"
+        let clientID = "trackiva_ios_\(Int(Date().timeIntervalSince1970))"
         let mqtt = CocoaMQTT(clientID: clientID, host: mqttBroker, port: UInt16(mqttPort))
         mqtt.username = mqttUsername.isEmpty ? nil : mqttUsername
         mqtt.password = mqttPassword.isEmpty ? nil : mqttPassword
@@ -418,7 +418,7 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
         isConnecting = true
         
         // Create new client
-        let clientID = "nectar_ios_\(Int(Date().timeIntervalSince1970))"
+        let clientID = "trackiva_ios_\(Int(Date().timeIntervalSince1970))"
         mqttClient?.disconnect()
         let mqtt = CocoaMQTT(clientID: clientID, host: mqttBroker, port: UInt16(mqttPort))
         mqtt.username = mqttUsername.isEmpty ? nil : mqttUsername

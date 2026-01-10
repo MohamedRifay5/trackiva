@@ -268,11 +268,11 @@ class _MyAppState extends State<MyApp> {
     try {
       // Set all MQTT and user/device/job details before starting tracking
       _trackiva.setMqttConfigAndDetails(
-        broker: "messages.nectarit.com",
+        broker: "broker.hivemq.com",
         port: 8884,
-        username: "mobile-ui",
-        password: "NecAws@123",
-        topic: "your/location/topic",
+        username: "user",
+        password: "pass",
+        topic: "trackiva/location",
         payload: {
           "userId": "17826",
           "batteryLevel": 28,

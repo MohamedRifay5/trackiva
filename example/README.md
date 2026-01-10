@@ -1,6 +1,6 @@
-# nectar_tracker_example
+# trackiva_example
 
-Demonstrates how to use the nectar_tracker plugin.
+Demonstrates how to use the trackiva plugin.
 
 ## Getting Started
 
