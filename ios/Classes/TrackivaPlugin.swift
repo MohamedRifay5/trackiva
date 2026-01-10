@@ -43,21 +43,8 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
     private var mqttTopic: String = "trackiva/location"
     private var mqttConnected = false
     
-    // User/device/job info
-    private var userId: String = ""
-    private var batteryLevel: Int = 0
-    private var userType: String = ""
-    private var deviceId: String = ""
-    private var domain: String = ""
-    private var usernameField: String = ""
-    private var identifier: String = ""
-    private var skills: [Any] = []
-    private var status: String = ""
-    private var name: String = ""
-    private var geofence: String = ""
-    private var emailid: String = ""
-    private var mobile: String = ""
-    private var jobId: String = ""
+    // Flexible payload - stored as dictionary
+    private var payload: [String: Any] = [:]
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = TrackivaPlugin()
@@ -88,23 +75,14 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
         mqttUsername = defaults.string(forKey: "username") ?? ""
         mqttPassword = defaults.string(forKey: "password") ?? ""
         mqttTopic = defaults.string(forKey: "topic") ?? mqttTopic
-        userId = defaults.string(forKey: "userId") ?? ""
-        batteryLevel = defaults.integer(forKey: "batteryLevel")
-        userType = defaults.string(forKey: "userType") ?? ""
-        deviceId = defaults.string(forKey: "deviceId") ?? ""
-        domain = defaults.string(forKey: "domain") ?? ""
-        usernameField = defaults.string(forKey: "usernameField") ?? ""
-        identifier = defaults.string(forKey: "identifier") ?? ""
-        if let skillsData = defaults.data(forKey: "skillsJson"),
-           let skillsArray = try? JSONSerialization.jsonObject(with: skillsData) as? [Any] {
-            skills = skillsArray
+        
+        // Load flexible payload
+        if let payloadData = defaults.data(forKey: "payloadJson"),
+           let payloadDict = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] {
+            payload = payloadDict
+        } else {
+            payload = [:]
         }
-        status = defaults.string(forKey: "status") ?? ""
-        name = defaults.string(forKey: "name") ?? ""
-        geofence = defaults.string(forKey: "geofence") ?? ""
-        emailid = defaults.string(forKey: "emailid") ?? ""
-        mobile = defaults.string(forKey: "mobile") ?? ""
-        jobId = defaults.string(forKey: "jobId") ?? ""
     }
     
     private func saveMqttConfig() {
@@ -114,22 +92,11 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
         defaults.set(mqttUsername, forKey: "username")
         defaults.set(mqttPassword, forKey: "password")
         defaults.set(mqttTopic, forKey: "topic")
-        defaults.set(userId, forKey: "userId")
-        defaults.set(batteryLevel, forKey: "batteryLevel")
-        defaults.set(userType, forKey: "userType")
-        defaults.set(deviceId, forKey: "deviceId")
-        defaults.set(domain, forKey: "domain")
-        defaults.set(usernameField, forKey: "usernameField")
-        defaults.set(identifier, forKey: "identifier")
-        if let skillsData = try? JSONSerialization.data(withJSONObject: skills) {
-            defaults.set(skillsData, forKey: "skillsJson")
+        
+        // Save flexible payload
+        if let payloadData = try? JSONSerialization.data(withJSONObject: payload) {
+            defaults.set(payloadData, forKey: "payloadJson")
         }
-        defaults.set(status, forKey: "status")
-        defaults.set(name, forKey: "name")
-        defaults.set(geofence, forKey: "geofence")
-        defaults.set(emailid, forKey: "emailid")
-        defaults.set(mobile, forKey: "mobile")
-        defaults.set(jobId, forKey: "jobId")
     }
     
     private func setupMqttClient() {
@@ -370,15 +337,18 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
             result("iOS " + UIDevice.current.systemVersion)
             
         case "getMqttStatus":
-            let status: [String: Any] = [
+            var status: [String: Any] = [
                 "connected": isMqttConnected(),
                 "connectionState": getMqttConnectionState(),
                 "broker": mqttBroker,
                 "port": mqttPort,
                 "topic": mqttTopic,
-                "userId": userId,
                 "isConnecting": isConnecting
             ]
+            
+            // Add payload to status
+            status["payload"] = payload
+            
             result(status)
             
         case "setMqttConfigAndDetails":
@@ -392,20 +362,13 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
             mqttUsername = args["username"] as? String ?? mqttUsername
             mqttPassword = args["password"] as? String ?? mqttPassword
             mqttTopic = args["topic"] as? String ?? mqttTopic
-            userId = args["userId"] as? String ?? userId
-            batteryLevel = args["batteryLevel"] as? Int ?? batteryLevel
-            userType = args["userType"] as? String ?? userType
-            deviceId = args["deviceId"] as? String ?? deviceId
-            domain = args["domain"] as? String ?? domain
-            usernameField = args["usernameField"] as? String ?? usernameField
-            identifier = args["identifier"] as? String ?? identifier
-            skills = args["skills"] as? [Any] ?? skills
-            status = args["status"] as? String ?? status
-            name = args["name"] as? String ?? name
-            geofence = args["geofence"] as? String ?? geofence
-            emailid = args["emailid"] as? String ?? emailid
-            mobile = args["mobile"] as? String ?? mobile
-            jobId = args["jobId"] as? String ?? jobId
+            
+            // Store flexible payload
+            if let payloadMap = args["payload"] as? [String: Any] {
+                payload = payloadMap
+            } else {
+                payload = [:]
+            }
             
             saveMqttConfig()
             disconnectMqtt()
@@ -529,37 +492,18 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
             return false
         }
         
-        // Validate required fields
-        guard !userId.isEmpty else {
-            if enableLogging {
-                print("\(TrackivaPlugin.TAG): MQTT publish failed: userId is empty")
-            }
-            return false
-        }
-        
-        // Create JSON payload exactly like your working implementation
-        let payload: [String: Any] = [
+        // Create JSON payload with location data and flexible payload
+        var mqttPayload: [String: Any] = [
             "location": "POINT(\(location.coordinate.longitude) \(location.coordinate.latitude))",
-            "id": userId,
-            "batteryLevel": Int(UIDevice.current.batteryLevel * 100),
-            "type": userType,
-            "time": Int(Date().timeIntervalSince1970 * 1000),
-            "deviceId": deviceId,
-            "domain": domain,
-            "username": usernameField,
-            "identifier": identifier,
-            "skills": skills,
-            "status": status,
-            "name": name,
-            "geofence": geofence,
-            "emailid": emailid,
-            "mobile": mobile,
-            "jobId": jobId
+            "time": Int(Date().timeIntervalSince1970 * 1000)
         ]
+        
+        // Merge flexible payload
+        mqttPayload.merge(payload) { (_, new) in new }
         
         
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: payload)
+            let jsonData = try JSONSerialization.data(withJSONObject: mqttPayload)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
                 if enableLogging {
                     let status = isBackground ? "Background" : "Foreground"

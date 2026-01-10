@@ -82,21 +82,8 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
     private var mqttUsername: String? = null
     private var mqttPassword: String? = null
     private var mqttTopic: String = "trackiva/location"
-    // User/device/job info fields
-    private var userId: String = ""
-    private var batteryLevel: Int = 0
-    private var userType: String = ""
-    private var deviceId: String = ""
-    private var domain: String = ""
-    private var usernameField: String = ""
-    private var identifier: String = ""
-    private var skillsJson: String = "[]"
-    private var status: String = ""
-    private var name: String = ""
-    private var geofence: String = ""
-    private var emailid: String = ""
-    private var mobile: String = ""
-    private var jobId: String = ""
+    // Flexible payload - stored as JSON string
+    private var payloadJson: String = "{}"
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
@@ -402,15 +389,31 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                 result.success("Android ${android.os.Build.VERSION.RELEASE}")
             }
             "getMqttStatus" -> {
-                val status = mapOf(
+                // Parse payload JSON to return it in status
+                val payloadMap = try {
+                    if (payloadJson.isNotEmpty() && payloadJson != "{}") {
+                        Gson().fromJson(payloadJson, Map::class.java) as? Map<*, *>
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+                
+                val status = mutableMapOf<String, Any>(
                     "connected" to (LocationForegroundService.mqttClient?.isConnected ?: false),
                     "connectionState" to if (LocationForegroundService.mqttClient?.isConnected == true) "Connected" else "Disconnected",
                     "broker" to mqttBroker,
                     "port" to mqttPort,
                     "topic" to mqttTopic,
-                    "userId" to userId,
                     "isConnecting" to false
                 )
+                
+                // Add payload to status
+                if (payloadMap != null) {
+                    status["payload"] = payloadMap
+                }
+                
                 result.success(status)
             }
             "canDrawOverlays" -> {
@@ -461,40 +464,26 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                 mqttUsername = args?.get("username") as? String
                 mqttPassword = args?.get("password") as? String
                 mqttTopic = args?.get("topic") as? String ?: mqttTopic
-                userId = args?.get("userId") as? String ?: ""
-                batteryLevel = (args?.get("batteryLevel") as? Int) ?: 0
-                userType = args?.get("userType") as? String ?: ""
-                deviceId = args?.get("deviceId") as? String ?: ""
-                domain = args?.get("domain") as? String ?: ""
-                usernameField = args?.get("usernameField") as? String ?: ""
-                identifier = args?.get("identifier") as? String ?: ""
-                skillsJson = (args?.get("skills") as? List<*>)?.let { Gson().toJson(it) } ?: "[]"
-                status = args?.get("status") as? String ?: ""
-                name = args?.get("name") as? String ?: ""
-                geofence = args?.get("geofence") as? String ?: ""
-                emailid = args?.get("emailid") as? String ?: ""
-                mobile = args?.get("mobile") as? String ?: ""
-                jobId = args?.get("jobId") as? String ?: ""
+                
+                // Store flexible payload as JSON
+                val payload = args?.get("payload") as? Map<*, *>
+                payloadJson = if (payload != null) {
+                    try {
+                        Gson().toJson(payload)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to serialize payload: ${e.message}")
+                        "{}"
+                    }
+                } else {
+                    "{}"
+                }
 
                 editor.putString("broker", mqttBroker)
                 editor.putInt("port", mqttPort)
                 editor.putString("username", mqttUsername)
                 editor.putString("password", mqttPassword)
                 editor.putString("topic", mqttTopic)
-                editor.putString("userId", userId)
-                editor.putInt("batteryLevel", batteryLevel)
-                editor.putString("userType", userType)
-                editor.putString("deviceId", deviceId)
-                editor.putString("domain", domain)
-                editor.putString("usernameField", usernameField)
-                editor.putString("identifier", identifier)
-                editor.putString("skillsJson", skillsJson)
-                editor.putString("status", status)
-                editor.putString("name", name)
-                editor.putString("geofence", geofence)
-                editor.putString("emailid", emailid)
-                editor.putString("mobile", mobile)
-                editor.putString("jobId", jobId)
+                editor.putString("payloadJson", payloadJson)
                 editor.apply()
 
                 // Notify running service to reload config
@@ -548,20 +537,8 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
         private var mqttUsername: String? = null
         private var mqttPassword: String? = null
         private var mqttTopic: String = "trackiva/location"
-        private var userId: String = ""
-        private var batteryLevel: Int = 0
-        private var userType: String = ""
-        private var deviceId: String = ""
-        private var domain: String = ""
-        private var usernameField: String = ""
-        private var identifier: String = ""
-        private var skillsJson: String = "[]"
-        private var status: String = ""
-        private var name: String = ""
-        private var geofence: String = ""
-        private var emailid: String = ""
-        private var mobile: String = ""
-        private var jobId: String = ""
+        // Flexible payload stored as JSON string
+        private var payloadJson: String = "{}"
         private var mqttConfigReceiver: BroadcastReceiver? = null
 
         companion object {
@@ -698,25 +675,30 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                                 broadcastLocation(location, true)
                             }, 1000)
                         }
-                        // --- MQTT publish (proper JSON encoding) ---
+                        // --- MQTT publish with flexible payload ---
                         val json = org.json.JSONObject().apply {
+                            // Add location data
                             put("location", "POINT(${location.longitude} ${location.latitude})")
-                            put("id", userId)
-                            put("batteryLevel", batteryLevel)
-                            put("type", userType)
                             put("time", System.currentTimeMillis())
-                            put("deviceId", deviceId)
-                            put("domain", domain)
-                            put("username", usernameField)
-                            put("identifier", identifier)
-                            val skillsArray = try { org.json.JSONArray(skillsJson) } catch (_: Exception) { org.json.JSONArray() }
-                            put("skills", skillsArray)
-                            put("status", status)
-                            put("name", name)
-                            put("geofence", geofence)
-                            put("emailid", emailid)
-                            put("mobile", mobile)
-                            put("jobId", jobId)
+                            
+                            // Merge flexible payload if available
+                            if (payloadJson.isNotEmpty() && payloadJson != "{}") {
+                                try {
+                                    val payloadMap = Gson().fromJson(payloadJson, Map::class.java) as? Map<*, *>
+                                    payloadMap?.forEach { (key, value) ->
+                                        when (value) {
+                                            is String -> put(key as String, value)
+                                            is Number -> put(key as String, value)
+                                            is Boolean -> put(key as String, value)
+                                            is List<*> -> put(key as String, org.json.JSONArray(value))
+                                            is Map<*, *> -> put(key as String, org.json.JSONObject(value as Map<*, *>))
+                                            else -> put(key as String, value.toString())
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to merge payload: ${e.message}")
+                                }
+                            }
                         }
                         val payload = json.toString()
                         try {
@@ -744,20 +726,7 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
             mqttUsername = prefs.getString("username", mqttUsername)
             mqttPassword = prefs.getString("password", mqttPassword)
             mqttTopic = prefs.getString("topic", mqttTopic) ?: mqttTopic
-            userId = prefs.getString("userId", userId) ?: userId
-            batteryLevel = prefs.getInt("batteryLevel", batteryLevel)
-            userType = prefs.getString("userType", userType) ?: userType
-            deviceId = prefs.getString("deviceId", deviceId) ?: deviceId
-            domain = prefs.getString("domain", domain) ?: domain
-            usernameField = prefs.getString("usernameField", usernameField) ?: usernameField
-            identifier = prefs.getString("identifier", identifier) ?: identifier
-            skillsJson = prefs.getString("skillsJson", skillsJson) ?: skillsJson
-            status = prefs.getString("status", status) ?: status
-            name = prefs.getString("name", name) ?: name
-            geofence = prefs.getString("geofence", geofence) ?: geofence
-            emailid = prefs.getString("emailid", emailid) ?: emailid
-            mobile = prefs.getString("mobile", mobile) ?: mobile
-            jobId = prefs.getString("jobId", jobId) ?: jobId
+            payloadJson = prefs.getString("payloadJson", payloadJson) ?: "{}"
         }
 
         private fun initMqttClient() {

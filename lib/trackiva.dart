@@ -174,27 +174,22 @@ class Trackiva {
     }
   }
 
-  /// Configure MQTT
+  /// Configure MQTT with flexible payload
+  ///
+  /// [broker] - MQTT broker hostname
+  /// [port] - MQTT broker port (use 8883 or 8884 for SSL/TLS)
+  /// [username] - MQTT username (optional)
+  /// [password] - MQTT password (optional)
+  /// [topic] - MQTT topic to publish location data
+  /// [payload] - Flexible Map<String, dynamic> containing any custom data to include in location payload
+  ///             This will be merged with location data when publishing to MQTT
   Future<void> setMqttConfigAndDetails({
     required String broker,
     required int port,
     required String username,
     required String password,
     required String topic,
-    required String userId,
-    required int batteryLevel,
-    required String userType,
-    required String deviceId,
-    required String domain,
-    required String usernameField,
-    required String identifier,
-    required List<String> skills,
-    required String status,
-    required String name,
-    required String geofence,
-    required String emailid,
-    required String mobile,
-    required String jobId,
+    required Map<String, dynamic> payload,
   }) async {
     await TrackivaPlatform.instance.setMqttConfigAndDetails(
       broker: broker,
@@ -202,20 +197,7 @@ class Trackiva {
       username: username,
       password: password,
       topic: topic,
-      userId: userId,
-      batteryLevel: batteryLevel,
-      userType: userType,
-      deviceId: deviceId,
-      domain: domain,
-      usernameField: usernameField,
-      identifier: identifier,
-      skills: skills,
-      status: status,
-      name: name,
-      geofence: geofence,
-      emailid: emailid,
-      mobile: mobile,
-      jobId: jobId,
+      payload: payload,
     );
   }
 
@@ -558,19 +540,13 @@ class Trackiva {
     });
   }
 
-  /// Get location metadata from platform
+  /// Get location metadata from platform (flexible payload)
   Future<Map<String, dynamic>> _getLocationMetadata() async {
     try {
       final mqttStatus = await getMqttStatus();
-      return {
-        'userId': mqttStatus['userId'] ?? '',
-        'deviceId': mqttStatus['deviceId'] ?? '',
-        'batteryLevel': mqttStatus['batteryLevel'] ?? 0,
-        'userType': mqttStatus['userType'] ?? '',
-        'domain': mqttStatus['domain'] ?? '',
-        'status': mqttStatus['status'] ?? '',
-        'jobId': mqttStatus['jobId'] ?? '',
-      };
+      // Return the flexible payload stored in MQTT status
+      final payload = mqttStatus['payload'] as Map<String, dynamic>?;
+      return payload ?? {};
     } catch (e) {
       return {};
     }

@@ -37,27 +37,14 @@ abstract class TrackivaPlatform extends PlatformInterface {
     throw UnimplementedError('initialize() has not been implemented.');
   }
 
-  /// Set MQTT configuration and user details
+  /// Set MQTT configuration with flexible payload
   Future<void> setMqttConfigAndDetails({
     required String broker,
     required int port,
     required String username,
     required String password,
     required String topic,
-    required String userId,
-    required int batteryLevel,
-    required String userType,
-    required String deviceId,
-    required String domain,
-    required String usernameField,
-    required String identifier,
-    required List<String> skills,
-    required String status,
-    required String name,
-    required String geofence,
-    required String emailid,
-    required String mobile,
-    required String jobId,
+    required Map<String, dynamic> payload,
   });
 
   /// Set HTTP configuration
