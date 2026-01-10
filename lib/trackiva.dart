@@ -181,6 +181,7 @@ class Trackiva {
   /// [username] - MQTT username (optional)
   /// [password] - MQTT password (optional)
   /// [topic] - MQTT topic to publish location data
+  // ignore: unintended_html_in_doc_comment
   /// [payload] - Flexible Map<String, dynamic> containing any custom data to include in location payload
   ///             This will be merged with location data when publishing to MQTT
   Future<void> setMqttConfigAndDetails({
