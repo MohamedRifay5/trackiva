@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-  package="com.example.nectar_tracker">
+  package="com.example.trackiva">
 
   <!-- Location permissions -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -29,7 +29,7 @@
   <application>
     <!-- Location foreground service -->
     <service
-      android:name=".NectarTrackerPlugin$LocationForegroundService"
+      android:name=".TrackivaPlugin$LocationForegroundService"
       android:enabled="true"
       android:exported="false"
       android:foregroundServiceType="location"
@@ -37,7 +37,7 @@
     
     <!-- Chat head service -->
     <service
-      android:name=".NectarTrackerPlugin$ChatHeadService"
+      android:name=".TrackivaPlugin$ChatHeadService"
       android:enabled="true"
       android:exported="false" />
 
@@ -45,7 +45,7 @@
       
     <!-- Boot receiver for auto-restart -->
     <receiver
-      android:name=".NectarTrackerPlugin$BootReceiver"
+      android:name=".TrackivaPlugin$BootReceiver"
       android:enabled="true"
       android:exported="true">
       <intent-filter>

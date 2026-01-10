@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'nectar_tracker_platform_interface.dart';
+import 'trackiva_platform_interface.dart';
 
-class MethodChannelNectarTracker extends NectarTrackerPlatform {
+class MethodChannelTrackiva extends TrackivaPlatform {
   @visibleForTesting
-  final methodChannel = const MethodChannel('nectar_tracker');
-  final eventChannel = const EventChannel('nectar_tracker/updates');
+  final methodChannel = const MethodChannel('trackiva');
+  final eventChannel = const EventChannel('trackiva/updates');
 
   Stream<LocationData>? _locationStream;
 
@@ -49,13 +49,9 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
       await methodChannel.invokeMethod('startTracking');
     } on PlatformException catch (e) {
       if (e.code == 'OVERLAY_PERMISSION_NEEDED') {
-        debugPrint(
-          '[NectarTracker] Overlay permission needed. Settings opened.',
-        );
-        // Re-throw so the caller can handle it
+        debugPrint('[Trackiva] Overlay permission needed. Settings opened.');
         rethrow;
       }
-      // Re-throw other errors
       rethrow;
     }
   }
@@ -86,8 +82,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
 
   @override
   Future<bool> isLocationServiceEnabled() async {
-    return await methodChannel.invokeMethod('isLocationServiceEnabled') ??
-        false;
+    return await methodChannel.invokeMethod('isLocationServiceEnabled') ?? false;
   }
 
   @override
@@ -111,10 +106,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
   Future<bool> setLocationAccuracy(LocationAccuracy accuracy) async {
     try {
       final accuracyString = accuracy.toString().split('.').last;
-      return await methodChannel.invokeMethod('setLocationAccuracy', {
-            'accuracy': accuracyString,
-          }) ??
-          false;
+      return await methodChannel.invokeMethod('setLocationAccuracy', {'accuracy': accuracyString}) ?? false;
     } catch (e) {
       debugPrint('Error setting location accuracy: $e');
       return false;
@@ -160,6 +152,28 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
   }
 
   @override
+  Future<void> setHttpConfig({
+    required String endpoint,
+    required Map<String, String> headers,
+    required String method,
+  }) async {
+    await methodChannel.invokeMethod('setHttpConfig', {'endpoint': endpoint, 'headers': headers, 'method': method});
+  }
+
+  @override
+  Future<void> setGraphQLConfig({
+    required String endpoint,
+    required String mutation,
+    required Map<String, String> headers,
+  }) async {
+    await methodChannel.invokeMethod('setGraphQLConfig', {
+      'endpoint': endpoint,
+      'mutation': mutation,
+      'headers': headers,
+    });
+  }
+
+  @override
   Stream<LocationData> get onLocationUpdate {
     _locationStream ??= eventChannel.receiveBroadcastStream().map((data) {
       try {
@@ -174,9 +188,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>(
-      'getPlatformVersion',
-    );
+    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
     return version;
   }
 
@@ -238,8 +250,7 @@ class MethodChannelNectarTracker extends NectarTrackerPlatform {
   @override
   Future<bool> requestOverlayPermission() async {
     try {
-      return await methodChannel.invokeMethod('requestOverlayPermission') ??
-          false;
+      return await methodChannel.invokeMethod('requestOverlayPermission') ?? false;
     } catch (e) {
       debugPrint('Error requesting overlay permission: $e');
       return false;

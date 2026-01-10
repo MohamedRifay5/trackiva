@@ -1,4 +1,4 @@
-package com.example.nectar_tracker
+package com.example.trackiva
 
 import android.app.ActivityManager
 import android.app.Notification
@@ -44,18 +44,18 @@ import com.google.gson.Gson
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
+class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
     private companion object {
-        const val CHANNEL_NAME = "nectar_tracker"
-        const val EVENT_CHANNEL_NAME = "nectar_tracker/updates"
-        const val TAG = "NectarTracker"
+        const val CHANNEL_NAME = "trackiva"
+        const val EVENT_CHANNEL_NAME = "trackiva/updates"
+        const val TAG = "Trackiva"
         const val NOTIFICATION_ID = 12345678
         const val LOCATION_NOTIFICATION_ID = 12345679
-        const val CHANNEL_ID = "nectar_tracker_channel"
-        const val LOCATION_CHANNEL_ID = "nectar_tracker_location_channel"
-        const val WAKE_LOCK_TAG = "NectarTracker::LocationWakeLock"
-        const val PREFS_NAME = "nectar_tracker"
-        const val ACTION_MQTT_CONFIG_UPDATED = "com.example.nectar_tracker.MQTT_CONFIG_UPDATED"
+        const val CHANNEL_ID = "trackiva_channel"
+        const val LOCATION_CHANNEL_ID = "trackiva_location_channel"
+        const val WAKE_LOCK_TAG = "Trackiva::LocationWakeLock"
+        const val PREFS_NAME = "trackiva"
+        const val ACTION_MQTT_CONFIG_UPDATED = "com.example.trackiva.MQTT_CONFIG_UPDATED"
     }
 
     private lateinit var context: Context
@@ -81,7 +81,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
     private var mqttPort: Int = 1883
     private var mqttUsername: String? = null
     private var mqttPassword: String? = null
-    private var mqttTopic: String = "nectar/location"
+    private var mqttTopic: String = "trackiva/location"
     // User/device/job info fields
     private var userId: String = ""
     private var batteryLevel: Int = 0
@@ -219,7 +219,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 showLocationNotifications = call.argument<Boolean>("showLocationNotifications") ?: false
 
                 if (enableLogging) {
-                    Log.d(TAG, "Initializing NectarTracker with logging enabled")
+                    Log.d(TAG, "Initializing Trackiva with logging enabled")
                 }
 
                 LocationForegroundService.setNotificationText(notificationTitle, notificationText)
@@ -521,7 +521,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                 Intent.ACTION_MY_PACKAGE_REPLACED,
                 Intent.ACTION_PACKAGE_REPLACED -> {
                     // Check if we should restart location tracking
-                    val sharedPrefs = context.getSharedPreferences("nectar_tracker", Context.MODE_PRIVATE)
+                    val sharedPrefs = context.getSharedPreferences("trackiva", Context.MODE_PRIVATE)
                     val shouldRestart = sharedPrefs.getBoolean("tracking_enabled", false)
                     
                     if (shouldRestart) {
@@ -547,7 +547,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
         private var mqttPort: Int = 1883
         private var mqttUsername: String? = null
         private var mqttPassword: String? = null
-        private var mqttTopic: String = "nectar/location"
+        private var mqttTopic: String = "trackiva/location"
         private var userId: String = ""
         private var batteryLevel: Int = 0
         private var userType: String = ""
@@ -764,7 +764,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
             try {
                 val scheme = if (mqttPort == 8883 || mqttPort == 8884) "ssl" else "tcp"
                 val brokerUrl = "$scheme://$mqttBroker:$mqttPort"
-                val clientId = "nectar_android_" + System.currentTimeMillis()
+                val clientId = "trackiva_android_" + System.currentTimeMillis()
                 mqttClient = MqttAsyncClient(brokerUrl, clientId, MemoryPersistence())
                 LocationForegroundService.mqttClient = mqttClient
                 mqttClient?.setCallback(object : MqttCallback {
@@ -1088,7 +1088,7 @@ class NectarTrackerPlugin : FlutterPlugin, MethodCallHandler {
                                     // Show a toast or perform action
                                     android.widget.Toast.makeText(
                                         this@ChatHeadService,
-                                        "Nectar Tracker Active",
+                                        "Trackiva Active",
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 }

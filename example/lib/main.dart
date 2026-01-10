@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nectar_tracker/nectar_tracker.dart';
-import 'package:nectar_tracker/nectar_tracker_platform_interface.dart';
+import 'package:trackiva/trackiva.dart';
+import 'package:trackiva/trackiva_platform_interface.dart';
 import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -15,14 +15,14 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final _nectarTracker = NectarTracker();
+  final _trackiva = Trackiva();
 
   // State variables
   String _platformVersion = 'Unknown';
   String _status = 'Not configured';
   bool _isConfigured = false;
   bool _isTracking = false;
-  NectarTrackerState? _currentState;
+  TrackivaState? _currentState;
 
   // Live location tracking
   LocationData? _currentLocation;
@@ -45,7 +45,7 @@ class _MyAppState extends State<MyApp> {
   final List<String> _actionLogs = [];
 
   // Configuration
-  NectarTrackerConfig _config = NectarTrackerConfig();
+  TrackivaConfig _config = TrackivaConfig();
 
   @override
   void initState() {
@@ -99,7 +99,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initPlatformState() async {
     String platformVersion;
     try {
-      platformVersion = await _nectarTracker.getPlatformVersion() ?? 'Unknown';
+      platformVersion = await _trackiva.getPlatformVersion() ?? 'Unknown';
     } catch (e) {
       platformVersion = 'Failed to get platform version: $e';
     }
@@ -113,7 +113,7 @@ class _MyAppState extends State<MyApp> {
 
   void _setupEventListeners() {
     // Location events
-    _nectarTracker.onLocation.listen((location) {
+    _trackiva.onLocation.listen((location) {
       _updateLiveLocation(location);
       _addLog(
         _locationLogs,
@@ -126,7 +126,7 @@ class _MyAppState extends State<MyApp> {
     });
 
     // Motion change events
-    _nectarTracker.onMotionChange.listen((location) {
+    _trackiva.onMotionChange.listen((location) {
       _addLog(
         _motionLogs,
         'Motion Change: ${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)} (Speed: ${location.speed.toStringAsFixed(2)} m/s)',
@@ -135,43 +135,43 @@ class _MyAppState extends State<MyApp> {
     });
 
     // Provider change events
-    _nectarTracker.onProviderChange.listen((event) {
+    _trackiva.onProviderChange.listen((event) {
       _addLog(_providerLogs, 'Provider Change: GPS=${event.gps}, Network=${event.network}, Enabled=${event.enabled}');
       _addLog(_actionLogs, '[ProviderChange] GPS=${event.gps}, Network=${event.network}, Enabled=${event.enabled}');
     });
 
     // Activity change events
-    _nectarTracker.onActivityChange.listen((event) {
+    _trackiva.onActivityChange.listen((event) {
       _addLog(_activityLogs, 'Activity Change: ${event.activity.toString().split('.').last}');
       _addLog(_actionLogs, '[ActivityChange] ${event.activity.toString().split('.').last}');
     });
 
     // Geofence events
-    _nectarTracker.onGeofence.listen((event) {
+    _trackiva.onGeofence.listen((event) {
       _addLog(_geofenceLogs, 'Geofence: ${event.identifier} ${event.enter ? "ENTER" : "EXIT"}');
       _addLog(_actionLogs, '[Geofence] ${event.identifier} ${event.enter ? "ENTER" : "EXIT"}');
     });
 
     // Heartbeat events
-    _nectarTracker.onHeartbeat.listen((event) {
+    _trackiva.onHeartbeat.listen((event) {
       _addLog(_heartbeatLogs, 'Heartbeat: ${DateTime.now().toIso8601String().substring(11, 19)}');
       _addLog(_actionLogs, '[Heartbeat]');
     });
 
     // HTTP events
-    _nectarTracker.onHttp.listen((event) {
+    _trackiva.onHttp.listen((event) {
       _addLog(_httpLogs, 'HTTP: ${event.success ? "SUCCESS" : "FAILED"} (${event.status})');
       _addLog(_actionLogs, '[HTTP] ${event.success ? "SUCCESS" : "FAILED"} (${event.status})');
     });
 
     // Connectivity change events
-    _nectarTracker.onConnectivityChange.listen((event) {
+    _trackiva.onConnectivityChange.listen((event) {
       _addLog(_connectivityLogs, 'Connectivity: ${event.connected ? "CONNECTED" : "DISCONNECTED"}');
       _addLog(_actionLogs, '[Connectivity] ${event.connected ? "CONNECTED" : "DISCONNECTED"}');
     });
 
     // Power save change events
-    _nectarTracker.onPowerSaveChange.listen((event) {
+    _trackiva.onPowerSaveChange.listen((event) {
       _addLog(_powerSaveLogs, 'Power Save: ${event.isPowerSaveMode ? "ENABLED" : "DISABLED"}');
       _addLog(_actionLogs, '[PowerSave] ${event.isPowerSaveMode ? "ENABLED" : "DISABLED"}');
     });
@@ -248,7 +248,7 @@ class _MyAppState extends State<MyApp> {
       });
       _addLog(_actionLogs, '[Action] Configuring plugin...');
       // Configure with current settings
-      final state = await _nectarTracker.ready(_config);
+      final state = await _trackiva.ready(_config);
       setState(() {
         _status = 'Configured successfully';
         _isConfigured = true;
@@ -267,7 +267,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _startTracking() async {
     try {
       // Set all MQTT and user/device/job details before starting tracking
-      _nectarTracker.setMqttConfigAndDetails(
+      _trackiva.setMqttConfigAndDetails(
         broker: "messages.nectarit.com",
         port: 8884,
         username: "mobile-ui",
@@ -292,7 +292,7 @@ class _MyAppState extends State<MyApp> {
         _status = 'Starting tracking...';
       });
       _addLog(_actionLogs, '[Action] Starting tracking...');
-      final success = await _nectarTracker.start();
+      final success = await _trackiva.start();
       if (success) {
         setState(() {
           _status = 'Tracking active';
@@ -323,7 +323,7 @@ class _MyAppState extends State<MyApp> {
         _status = 'Stopping tracking...';
       });
       _addLog(_actionLogs, '[Action] Stopping tracking...');
-      final success = await _nectarTracker.stop();
+      final success = await _trackiva.stop();
       if (success) {
         setState(() {
           _status = 'Tracking stopped';
@@ -350,7 +350,7 @@ class _MyAppState extends State<MyApp> {
         _status = 'Getting current position...';
       });
       _addLog(_actionLogs, '[Action] Getting current position...');
-      final location = await _nectarTracker.getCurrentPosition();
+      final location = await _trackiva.getCurrentPosition();
       if (location != null) {
         _updateLiveLocation(location);
         _addLog(
@@ -377,7 +377,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _getState() async {
     try {
-      final state = await _nectarTracker.getState();
+      final state = await _trackiva.getState();
       setState(() {
         _currentState = state;
         _status =
@@ -394,7 +394,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _checkLocationServices() async {
     try {
-      final isEnabled = await _nectarTracker.isLocationServicesEnabled();
+      final isEnabled = await _trackiva.isLocationServicesEnabled();
       setState(() {
         _status = 'Location services: ${isEnabled ? "Enabled" : "Disabled"}';
       });
@@ -409,7 +409,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _getTrackingStats() async {
     try {
-      final stats = await _nectarTracker.getTrackingStats();
+      final stats = await _trackiva.getTrackingStats();
       setState(() {
         _status =
             'Stats: ${stats.totalLocations} locations, ${stats.totalDistance.toStringAsFixed(2)}m distance, ${stats.averageSpeed.toStringAsFixed(2)} m/s avg speed';
@@ -425,7 +425,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _clearTrackingData() async {
     try {
-      final success = await _nectarTracker.clearTrackingData();
+      final success = await _trackiva.clearTrackingData();
       if (success) {
         setState(() {
           _locationLogs.clear();
@@ -462,7 +462,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _checkMqttStatus() async {
     try {
-      final status = await _nectarTracker.getMqttStatus();
+      final status = await _trackiva.getMqttStatus();
       setState(() {
         _status = 'MQTT Status: ${status['connected'] ? "Connected" : "Disconnected"} (${status['connectionState']})';
       });
@@ -485,7 +485,7 @@ class _MyAppState extends State<MyApp> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Configure Nectar Tracker'),
+        title: Text('Configure Trackiva'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -502,7 +502,7 @@ class _MyAppState extends State<MyApp> {
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
-                      _config = NectarTrackerConfig(
+                      _config = TrackivaConfig(
                         desiredAccuracy: value,
                         distanceFilter: _config.distanceFilter,
                         stopOnTerminate: _config.stopOnTerminate,
@@ -528,7 +528,7 @@ class _MyAppState extends State<MyApp> {
                 onChanged: (value) {
                   final distance = double.tryParse(value) ?? 10.0;
                   setState(() {
-                    _config = NectarTrackerConfig(
+                    _config = TrackivaConfig(
                       desiredAccuracy: _config.desiredAccuracy,
                       distanceFilter: distance,
                       stopOnTerminate: _config.stopOnTerminate,
@@ -551,7 +551,7 @@ class _MyAppState extends State<MyApp> {
                 value: _config.stopOnTerminate,
                 onChanged: (value) {
                   setState(() {
-                    _config = NectarTrackerConfig(
+                    _config = TrackivaConfig(
                       desiredAccuracy: _config.desiredAccuracy,
                       distanceFilter: _config.distanceFilter,
                       stopOnTerminate: value ?? false,
@@ -573,7 +573,7 @@ class _MyAppState extends State<MyApp> {
                 value: _config.startOnBoot,
                 onChanged: (value) {
                   setState(() {
-                    _config = NectarTrackerConfig(
+                    _config = TrackivaConfig(
                       desiredAccuracy: _config.desiredAccuracy,
                       distanceFilter: _config.distanceFilter,
                       stopOnTerminate: _config.stopOnTerminate,
@@ -595,7 +595,7 @@ class _MyAppState extends State<MyApp> {
                 value: _config.debug,
                 onChanged: (value) {
                   setState(() {
-                    _config = NectarTrackerConfig(
+                    _config = TrackivaConfig(
                       desiredAccuracy: _config.desiredAccuracy,
                       distanceFilter: _config.distanceFilter,
                       stopOnTerminate: _config.stopOnTerminate,
@@ -887,7 +887,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Nectar Tracker Demo'),
+          title: const Text('Trackiva Demo'),
           backgroundColor: Colors.green,
           actions: [IconButton(icon: Icon(Icons.settings), onPressed: _updateConfig)],
         ),

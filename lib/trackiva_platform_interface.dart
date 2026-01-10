@@ -1,15 +1,15 @@
-import 'package:nectar_tracker/nectar_tracker_method_channel.dart';
+import 'trackiva_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-abstract class NectarTrackerPlatform extends PlatformInterface {
-  NectarTrackerPlatform() : super(token: _token);
+abstract class TrackivaPlatform extends PlatformInterface {
+  TrackivaPlatform() : super(token: _token);
 
   static final Object _token = Object();
-  static NectarTrackerPlatform _instance = MethodChannelNectarTracker();
+  static TrackivaPlatform _instance = MethodChannelTrackiva();
 
-  static NectarTrackerPlatform get instance => _instance;
+  static TrackivaPlatform get instance => _instance;
 
-  static set instance(NectarTrackerPlatform instance) {
+  static set instance(TrackivaPlatform instance) {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }
@@ -60,6 +60,20 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
     required String jobId,
   });
 
+  /// Set HTTP configuration
+  Future<void> setHttpConfig({required String endpoint, required Map<String, String> headers, required String method}) {
+    throw UnimplementedError('setHttpConfig() has not been implemented.');
+  }
+
+  /// Set GraphQL configuration
+  Future<void> setGraphQLConfig({
+    required String endpoint,
+    required String mutation,
+    required Map<String, String> headers,
+  }) {
+    throw UnimplementedError('setGraphQLConfig() has not been implemented.');
+  }
+
   Future<void> startTracking() {
     throw UnimplementedError('startTracking() has not been implemented.');
   }
@@ -77,9 +91,7 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
   }
 
   Future<bool> isLocationServiceEnabled() {
-    throw UnimplementedError(
-      'isLocationServiceEnabled() has not been implemented.',
-    );
+    throw UnimplementedError('isLocationServiceEnabled() has not been implemented.');
   }
 
   Future<LocationAccuracy> getLocationAccuracy() {
@@ -114,17 +126,13 @@ abstract class NectarTrackerPlatform extends PlatformInterface {
   /// Request overlay permission (Android only)
   /// Opens system settings for the user to grant permission
   Future<bool> requestOverlayPermission() {
-    throw UnimplementedError(
-      'requestOverlayPermission() has not been implemented.',
-    );
+    throw UnimplementedError('requestOverlayPermission() has not been implemented.');
   }
 
   /// Manually start chat head service (Android only)
   /// Useful after overlay permission is granted
   Future<bool> startChatHeadService() {
-    throw UnimplementedError(
-      'startChatHeadService() has not been implemented.',
-    );
+    throw UnimplementedError('startChatHeadService() has not been implemented.');
   }
 }
 
@@ -180,8 +188,7 @@ class LocationData {
     if (value == null) return DateTime.now();
     if (value is DateTime) return value;
     if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
-    if (value is double)
-      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    if (value is double) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
     return DateTime.now();
   }
 

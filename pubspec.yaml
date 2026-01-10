@@ -1,5 +1,5 @@
-name: nectar_tracker
-description: "A comprehensive Flutter plugin for location tracking in foreground, background, and terminated states."
+name: trackiva
+description: "A comprehensive Flutter plugin for location tracking in foreground, background, and terminated states with MQTT, GraphQL, and HTTP support."
 version: 0.0.1
 homepage:
 
@@ -10,8 +10,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  mqtt_client: ^10.11.4
+  mqtt_client: ^10.11.5
   plugin_platform_interface: ^2.1.8
+  http: ^1.6.0
+  graphql: ^5.2.3
+  sqflite: ^2.4.2
+  path_provider: ^2.1.5
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
@@ -38,10 +43,10 @@ flutter:
   plugin:
     platforms:
       android:
-        package: com.example.nectar_tracker
-        pluginClass: NectarTrackerPlugin
+        package: com.example.trackiva
+        pluginClass: TrackivaPlugin
       ios:
-        pluginClass: NectarTrackerPlugin
+        pluginClass: TrackivaPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
