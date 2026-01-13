@@ -1,3 +1,7 @@
+## 0.0.3
+
+- MQTT Enchancement
+
 ## 0.0.2
 
 ### Major Changes
