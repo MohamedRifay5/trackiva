@@ -3,22 +3,33 @@ PODS:
     - CocoaMQTT/Core (= 2.1.6)
   - CocoaMQTT/Core (2.1.6):
     - MqttCocoaAsyncSocket (~> 1.0.8)
+  - connectivity_plus (0.0.1):
+    - Flutter
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
   - MqttCocoaAsyncSocket (1.0.8)
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - permission_handler_apple (9.3.0):
+    - Flutter
+  - sqflite_darwin (0.0.4):
+    - Flutter
+    - FlutterMacOS
   - trackiva (0.0.1):
     - CocoaMQTT (~> 2.1.1)
-    - Flutter
-  - permission_handler_apple (9.3.0):
     - Flutter
 
 DEPENDENCIES:
   - CocoaMQTT (~> 2.1.1)
+  - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
   - Flutter (from `Flutter`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
-  - trackiva (from `.symlinks/plugins/trackiva/ios`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+  - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+  - trackiva (from `.symlinks/plugins/trackiva/ios`)
 
 SPEC REPOS:
   trunk:
@@ -26,22 +37,31 @@ SPEC REPOS:
     - MqttCocoaAsyncSocket
 
 EXTERNAL SOURCES:
+  connectivity_plus:
+    :path: ".symlinks/plugins/connectivity_plus/ios"
   Flutter:
     :path: Flutter
   integration_test:
     :path: ".symlinks/plugins/integration_test/ios"
-  trackiva:
-    :path: ".symlinks/plugins/trackiva/ios"
+  path_provider_foundation:
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
+  sqflite_darwin:
+    :path: ".symlinks/plugins/sqflite_darwin/darwin"
+  trackiva:
+    :path: ".symlinks/plugins/trackiva/ios"
 
 SPEC CHECKSUMS:
   CocoaMQTT: 1f206228b29318eabdacad0c2e4e88575922c27a
+  connectivity_plus: 2a701ffec2c0ae28a48cf7540e279787e77c447d
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
   MqttCocoaAsyncSocket: 77d3b74f76228dd5a05d1f9526eab101d415b30c
-  trackiva: 1ff0e3ed7dd76c9067a676600e36e77cc26961b9
+  path_provider_foundation: 0b743cbb62d8e47eab856f09262bb8c1ddcfe6ba
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
+  sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
+  trackiva: b8fcd8d0b7d8722d8410732c087050f5ac305565
 
 PODFILE CHECKSUM: 1da22db9688a8ca7809ed347ff3a38fa159edd5f
 

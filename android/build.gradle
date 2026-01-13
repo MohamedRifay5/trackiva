@@ -45,6 +45,8 @@ android {
 
     defaultConfig {
         minSdk = 21
+        // Include ProGuard rules for consumers of this library
+        consumerProguardFiles("proguard-rules.pro")
     }
 
     dependencies {

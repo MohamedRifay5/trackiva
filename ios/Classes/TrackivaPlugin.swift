@@ -30,6 +30,8 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
     // Settings
     private var enableLogging = true
     private var showLocationNotifications = false
+    private var locationNotificationTitle: String = "Location Update"
+    private var locationNotificationBody: String = ""
     private var enableBackgroundMode = true
     private var enableHighAccuracy = true
     private var distanceFilter: Double = 10.0
@@ -139,6 +141,8 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
             
             enableLogging = args["enableLogging"] as? Bool ?? true
             showLocationNotifications = args["showLocationNotifications"] as? Bool ?? false
+            locationNotificationTitle = args["locationNotificationTitle"] as? String ?? "Location Update"
+            locationNotificationBody = args["locationNotificationBody"] as? String ?? ""
             enableBackgroundMode = args["enableBackgroundMode"] as? Bool ?? true
             enableHighAccuracy = args["enableHighAccuracy"] as? Bool ?? true
             distanceFilter = args["distanceFilter"] as? Double ?? 10.0
@@ -359,8 +363,13 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
             
             mqttBroker = args["broker"] as? String ?? mqttBroker
             mqttPort = args["port"] as? Int ?? mqttPort
-            mqttUsername = args["username"] as? String ?? mqttUsername
-            mqttPassword = args["password"] as? String ?? mqttPassword
+            // Username and password are optional - if provided (even empty), use it; if nil, keep existing
+            if let username = args["username"] {
+                mqttUsername = username as? String ?? ""
+            }
+            if let password = args["password"] {
+                mqttPassword = password as? String ?? ""
+            }
             mqttTopic = args["topic"] as? String ?? mqttTopic
             
             // Store flexible payload
@@ -501,7 +510,6 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
         // Merge flexible payload
         mqttPayload.merge(payload) { (_, new) in new }
         
-        
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: mqttPayload)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -509,8 +517,12 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
                     let status = isBackground ? "Background" : "Foreground"
                     print("\(TrackivaPlugin.TAG): Sending location to MQTT (\(status)): \(jsonString)")
                 }
-                mqtt.publish(mqttTopic, withString: jsonString, qos: .qos1)
-                return true
+                let messageId = mqtt.publish(mqttTopic, withString: jsonString, qos: .qos1)
+                let success = messageId > 0
+                if enableLogging {
+                    print("\(TrackivaPlugin.TAG): MQTT publish result: messageId=\(messageId), success=\(success)")
+                }
+                return success
             } else {
                 if enableLogging {
                     print("\(TrackivaPlugin.TAG): Failed to convert JSON data to string")
@@ -571,9 +583,22 @@ public class TrackivaPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, CLLo
     private func showLocationNotification(location: CLLocation, isBackground: Bool) {
         if #available(iOS 10.0, *) {
             let content = UNMutableNotificationContent()
-            content.title = "Location Update"
             let status = isBackground ? "Background" : "Foreground"
-            content.body = "\(location.coordinate.latitude), \(location.coordinate.longitude) (\(status))"
+            
+            // Use custom title and body, with placeholders
+            var title = locationNotificationTitle
+            title = title.replacingOccurrences(of: "{latitude}", with: String(location.coordinate.latitude))
+            title = title.replacingOccurrences(of: "{longitude}", with: String(location.coordinate.longitude))
+            title = title.replacingOccurrences(of: "{status}", with: status)
+            content.title = title
+            
+            var body = locationNotificationBody.isEmpty 
+                ? "\(location.coordinate.latitude), \(location.coordinate.longitude) (\(status))"
+                : locationNotificationBody
+            body = body.replacingOccurrences(of: "{latitude}", with: String(location.coordinate.latitude))
+            body = body.replacingOccurrences(of: "{longitude}", with: String(location.coordinate.longitude))
+            body = body.replacingOccurrences(of: "{status}", with: status)
+            content.body = body
             content.sound = nil
             
             let request = UNNotificationRequest(

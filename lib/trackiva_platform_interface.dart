@@ -31,8 +31,11 @@ abstract class TrackivaPlatform extends PlatformInterface {
     String? notificationIcon,
     String? notificationColor,
     String? chatHeadIcon,
+    bool enableChatHead = false,
     bool enableLogging = true,
     bool showLocationNotifications = false,
+    String? locationNotificationTitle,
+    String? locationNotificationBody,
   }) {
     throw UnimplementedError('initialize() has not been implemented.');
   }
@@ -41,8 +44,8 @@ abstract class TrackivaPlatform extends PlatformInterface {
   Future<void> setMqttConfigAndDetails({
     required String broker,
     required int port,
-    required String username,
-    required String password,
+    String? username,
+    String? password,
     required String topic,
     required Map<String, dynamic> payload,
   });
