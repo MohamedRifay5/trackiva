@@ -106,9 +106,10 @@ void main() async {
   // 2. Configure MQTT with flexible payload (optional)
   await tracker.setMqttConfigAndDetails(
     broker: 'broker.hivemq.com',
-    port: 1883,
-    username: 'your_username',
-    password: 'your_password',
+    port: 8884,
+    // username and password are optional - omit if not needed
+    // username: 'your_username',
+    // password: 'your_password',
     topic: 'trackiva/location',
     payload: {
       'userId': 'user123',
@@ -197,7 +198,13 @@ await tracker.ready(TrackivaConfig(
   showLocationNotifications: false, // Show location update notifications
 
   // Chat Head (Android only)
-  chatHeadIcon: 'ic_launcher', // Custom icon for floating bubble
+  enableChatHead: false, // Enable chat head feature (requires overlay permission)
+  chatHeadIcon: 'ic_launcher', // Custom icon for floating bubble (only used if enableChatHead is true)
+  // Icon can be:
+  // - Drawable resource name: 'ic_launcher', 'my_icon' (from res/drawable/)
+  // - Mipmap resource name: 'ic_launcher' (from res/mipmap/ - for app icons)
+  // - Asset file path: 'assets/my_icon.png' (from assets/ folder)
+  // - If not specified or not found, app icon will be used automatically
 
   // HTTP Support
   enableHttp: true,
@@ -617,11 +624,37 @@ Add to `android/app/src/main/AndroidManifest.xml`:
 
 #### Chat Head Icon
 
-Place your custom icon in `android/app/src/main/res/drawable/` (e.g., `ic_chat_head.png`), then reference it:
+The chat head icon can be loaded from multiple sources with automatic fallback:
 
-```dart
-chatHeadIcon: 'ic_chat_head', // Without file extension
-```
+1. **Drawable Resources** (Recommended)
+
+   ```dart
+   chatHeadIcon: 'ic_chat_head', // From res/drawable/ic_chat_head.png
+   ```
+
+2. **Mipmap Resources** (For app icons)
+
+   ```dart
+   chatHeadIcon: 'ic_launcher', // From res/mipmap/ic_launcher.png
+   ```
+
+3. **Assets Folder**
+
+   ```dart
+   chatHeadIcon: 'assets/my_icon.png', // From assets/my_icon.png
+   ```
+
+4. **Automatic App Icon** (If no icon specified or not found)
+   - The plugin will automatically use your app's launcher icon
+   - No configuration needed
+
+**Icon Loading Priority:**
+
+1. Drawable resources (`res/drawable/`)
+2. Mipmap resources (`res/mipmap/`)
+3. Assets folder (`assets/`)
+4. App launcher icon (automatic)
+5. Default location icon (fallback)
 
 #### Dependencies
 
@@ -980,6 +1013,28 @@ class _TrackingScreenState extends State<TrackingScreen> {
 - ✅ On Android: Use `startOnBoot: true` and required permissions
 - ✅ On iOS: Background modes and "Always" permission are required
 - ✅ Chat head continues even when app is terminated (Android)
+
+### ProGuard/R8 Issues (Release Builds)?
+
+- ✅ **ProGuard rules are automatically included** - No manual configuration needed
+- ✅ The plugin includes `proguard-rules.pro` that protects all necessary classes
+- ✅ If you encounter issues, check that your app's `build.gradle` includes:
+  ```gradle
+  buildTypes {
+      release {
+          minifyEnabled true
+          proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+      }
+  }
+  ```
+- ✅ The plugin's ProGuard rules protect:
+  - Trackiva plugin classes
+  - MQTT client (Eclipse Paho)
+  - Gson for JSON serialization
+  - Location services
+  - Notification classes
+  - Services and broadcast receivers
+- ✅ See `README_PROGUARD.md` for detailed ProGuard configuration
 
 ---
 

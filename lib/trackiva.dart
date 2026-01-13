@@ -140,8 +140,11 @@ class Trackiva {
         notificationIcon: config.notificationIcon,
         notificationColor: config.notificationColor,
         chatHeadIcon: config.chatHeadIcon,
+        enableChatHead: config.enableChatHead,
         enableLogging: config.debug,
         showLocationNotifications: config.showLocationNotifications,
+        locationNotificationTitle: config.locationNotificationTitle,
+        locationNotificationBody: config.locationNotificationBody,
       );
 
       // Start listening to platform event channel
@@ -187,8 +190,8 @@ class Trackiva {
   Future<void> setMqttConfigAndDetails({
     required String broker,
     required int port,
-    required String username,
-    required String password,
+    String? username,
+    String? password,
     required String topic,
     required Map<String, dynamic> payload,
   }) async {
@@ -624,7 +627,10 @@ class TrackivaConfig {
   final String? notificationIcon;
   final String? notificationColor;
   final String? chatHeadIcon;
+  final bool enableChatHead;
   final bool showLocationNotifications;
+  final String? locationNotificationTitle;
+  final String? locationNotificationBody;
 
   // HTTP support
   final bool enableHttp;
@@ -652,7 +658,10 @@ class TrackivaConfig {
     this.notificationIcon,
     this.notificationColor,
     this.chatHeadIcon,
+    this.enableChatHead = false,
     this.showLocationNotifications = false,
+    this.locationNotificationTitle,
+    this.locationNotificationBody,
     this.enableHttp = false,
     this.httpEndpoint,
     this.httpHeaders,

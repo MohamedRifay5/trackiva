@@ -23,8 +23,11 @@ class MethodChannelTrackiva extends TrackivaPlatform {
     String? notificationIcon,
     String? notificationColor,
     String? chatHeadIcon,
+    bool enableChatHead = false,
     bool enableLogging = true,
     bool showLocationNotifications = false,
+    String? locationNotificationTitle,
+    String? locationNotificationBody,
   }) async {
     await methodChannel.invokeMethod('initialize', {
       'notificationTitle': notificationTitle,
@@ -38,8 +41,11 @@ class MethodChannelTrackiva extends TrackivaPlatform {
       'notificationIcon': notificationIcon,
       'notificationColor': notificationColor,
       'chatHeadIcon': chatHeadIcon,
+      'enableChatHead': enableChatHead,
       'enableLogging': enableLogging,
       'showLocationNotifications': showLocationNotifications,
+      'locationNotificationTitle': locationNotificationTitle,
+      'locationNotificationBody': locationNotificationBody,
     });
   }
 
@@ -196,8 +202,8 @@ class MethodChannelTrackiva extends TrackivaPlatform {
   Future<void> setMqttConfigAndDetails({
     required String broker,
     required int port,
-    required String username,
-    required String password,
+    String? username,
+    String? password,
     required String topic,
     required Map<String, dynamic> payload,
   }) async {

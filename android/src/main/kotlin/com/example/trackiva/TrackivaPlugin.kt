@@ -43,6 +43,11 @@ import java.util.concurrent.atomic.AtomicInteger
 import com.google.gson.Gson
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLSocketFactory
 
 class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
     private companion object {
@@ -75,6 +80,9 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
     // Settings
     private var enableLogging = true
     private var showLocationNotifications = false
+    private var locationNotificationTitle: String = "Location Update"
+    private var locationNotificationBody: String = ""
+    private var enableChatHead = false
 
     // MQTT config fields
     private var mqttBroker: String = "broker.hivemq.com"
@@ -122,7 +130,7 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                     
                     // Show location notification if enabled
                     if (showLocationNotifications) {
-                        showLocationNotification(it, isBackground)
+                        showLocationNotification(it, isBackground, locationNotificationTitle, locationNotificationBody)
                     }
                     
                     val locationMap = mapOf(
@@ -163,7 +171,7 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
         lastLocation = location
     }
 
-    private fun showLocationNotification(location: Location, isBackground: Boolean) {
+    private fun showLocationNotification(location: Location, isBackground: Boolean, title: String, body: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
         // Create location notification channel
@@ -177,9 +185,21 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
         }
 
         val status = if (isBackground) "Background" else "Foreground"
+        val notificationBody = if (body.isNotEmpty()) {
+            body.replace("{latitude}", location.latitude.toString())
+                .replace("{longitude}", location.longitude.toString())
+                .replace("{status}", status)
+        } else {
+            "${location.latitude}, ${location.longitude} ($status)"
+        }
+        
+        val notificationTitle = title.replace("{latitude}", location.latitude.toString())
+            .replace("{longitude}", location.longitude.toString())
+            .replace("{status}", status)
+
         val notification = NotificationCompat.Builder(context, LOCATION_CHANNEL_ID)
-            .setContentTitle("Location Update")
-            .setContentText("${location.latitude}, ${location.longitude} ($status)")
+            .setContentTitle(notificationTitle)
+            .setContentText(notificationBody)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
@@ -202,19 +222,25 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                 val notificationIcon = call.argument<String>("notificationIcon")
                 val notificationColor = call.argument<String>("notificationColor")
                 val chatHeadIcon = call.argument<String>("chatHeadIcon")
+                enableChatHead = call.argument<Boolean>("enableChatHead") ?: false
                 enableLogging = call.argument<Boolean>("enableLogging") ?: true
                 showLocationNotifications = call.argument<Boolean>("showLocationNotifications") ?: false
+                locationNotificationTitle = call.argument<String>("locationNotificationTitle") ?: "Location Update"
+                locationNotificationBody = call.argument<String>("locationNotificationBody") ?: ""
 
                 if (enableLogging) {
-                    Log.d(TAG, "Initializing Trackiva with logging enabled")
+                    Log.d(TAG, "Initializing Trackiva with logging enabled, chatHead: $enableChatHead")
                 }
 
                 LocationForegroundService.setNotificationText(notificationTitle, notificationText)
+                LocationForegroundService.setLocationNotificationText(locationNotificationTitle, locationNotificationBody)
                 LocationForegroundService.setLocationSettings(
                     interval, fastestInterval, distanceFilter,
                     enableBackgroundMode, enableHighAccuracy, enableBatteryOptimization
                 )
                 LocationForegroundService.setChatHeadIcon(chatHeadIcon)
+                LocationForegroundService.setEnableChatHead(enableChatHead)
+                LocationForegroundService.setEnableLogging(enableLogging)
                 result.success(null)
             }
             "startTracking" -> {
@@ -236,28 +262,35 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                     return
                 }
                 
-                // Check overlay permission for chat head
-                val overlayPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Settings.canDrawOverlays(context)
-                } else {
-                    true
-                }
-                
-                if (!overlayPermissionGranted) {
-                    if (enableLogging) {
-                        Log.d(TAG, "Overlay permission not granted, requesting...")
+                // Check overlay permission for chat head only if chat head is enabled
+                var overlayPermissionGranted = true
+                if (enableChatHead) {
+                    overlayPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Settings.canDrawOverlays(context)
+                    } else {
+                        true
                     }
-                    try {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                        // Still start location tracking even without overlay permission
-                        // Chat head will start automatically when permission is granted
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to open overlay permission settings: ${e.message}")
+                    
+                    if (!overlayPermissionGranted) {
+                        if (enableLogging) {
+                            Log.d(TAG, "Overlay permission not granted, requesting...")
+                        }
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                            // Still start location tracking even without overlay permission
+                            // Chat head will start automatically when permission is granted
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to open overlay permission settings: ${e.message}")
+                        }
+                    }
+                } else {
+                    if (enableLogging) {
+                        Log.d(TAG, "Chat head is disabled, skipping overlay permission check")
                     }
                 }
                 
@@ -274,7 +307,7 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                     
                     if (enableLogging) {
                         Log.d(TAG, "Location tracking started successfully")
-                        if (!overlayPermissionGranted) {
+                        if (enableChatHead && !overlayPermissionGranted) {
                             Log.d(TAG, "Note: Chat head will appear after overlay permission is granted")
                         }
                     }
@@ -557,11 +590,23 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
             private var currentAccuracy = "medium"
             private var currentLocation: Location? = null
             private var chatHeadIconName: String? = null
+            private var enableChatHead = false
+            private var locationNotificationTitle = "Location Update"
+            private var locationNotificationBody = ""
+            internal var enableLogging = true
 
             fun setNotificationText(title: String, text: String) {
                 notificationTitle = title
                 notificationText = text
             }
+
+            fun setLocationNotificationText(title: String, body: String) {
+                locationNotificationTitle = title
+                locationNotificationBody = body
+            }
+
+            fun getLocationNotificationTitle(): String = locationNotificationTitle
+            fun getLocationNotificationBody(): String = locationNotificationBody
 
             fun setLocationSettings(
                 intervalMs: Int, fastestIntervalMs: Int, distanceFilterMeters: Float,
@@ -579,7 +624,12 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                 chatHeadIconName = iconName
             }
 
+            fun setEnableChatHead(enabled: Boolean) {
+                enableChatHead = enabled
+            }
+
             fun getChatHeadIconName(): String? = chatHeadIconName
+            fun isChatHeadEnabled(): Boolean = enableChatHead
 
             fun getCurrentLocation(callback: (Location?) -> Unit) {
                 if (isRunning) {
@@ -594,6 +644,10 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
             fun setAccuracy(accuracy: String): Boolean {
                 currentAccuracy = accuracy
                 return true
+            }
+
+            fun setEnableLogging(enabled: Boolean) {
+                enableLogging = enabled
             }
         }
 
@@ -611,8 +665,14 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
             loadMqttConfig()
             initMqttClient()
 
-            // Start chat head service if overlay permission is granted
-            startChatHeadService()
+            // Start chat head service only if enabled and overlay permission is granted
+            if (enableChatHead) {
+                startChatHeadService()
+            } else {
+                if (enableLogging) {
+                    Log.d(TAG, "Chat head is disabled, not starting chat head service")
+                }
+            }
 
             // Listen for runtime config updates
             mqttConfigReceiver = object : BroadcastReceiver() {
@@ -634,8 +694,10 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
             startForeground(NOTIFICATION_ID, notification)
             startLocationUpdates()
             
-            // Ensure chat head service is running (in case service was restarted)
-            startChatHeadService()
+            // Ensure chat head service is running (in case service was restarted) only if enabled
+            if (enableChatHead) {
+                startChatHeadService()
+            }
             
             return START_STICKY
         }
@@ -688,7 +750,7 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                                     payloadMap?.forEach { (key, value) ->
                                         when (value) {
                                             is String -> put(key as String, value)
-                                            is Number -> put(key as String, value)
+                                            is Number -> put(key as String, value.toDouble())
                                             is Boolean -> put(key as String, value)
                                             is List<*> -> put(key as String, org.json.JSONArray(value))
                                             is Map<*, *> -> put(key as String, org.json.JSONObject(value as Map<*, *>))
@@ -708,11 +770,14 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                                     isRetained = false
                                 }
                                 mqttClient?.publish(mqttTopic, message)
+                                if (LocationForegroundService.enableLogging) {
+                                    Log.d(TAG, "MQTT payload published: $payload")
+                                }
                             } else {
-                                Log.w(TAG, "MQTT not connected, skipping publish")
+                                Log.w(TAG, "MQTT not connected, skipping publish. Connection state: ${mqttClient?.isConnected}")
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "MQTT publish failed: ${e.message}")
+                            Log.e(TAG, "MQTT publish failed: ${e.message}", e)
                         }
                     }
                 }
@@ -748,17 +813,48 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                     isCleanSession = true
                     mqttUsername?.let { userName = it }
                     mqttPassword?.let { password = it.toCharArray() }
+                    
+                    // Configure SSL for ports 8883 and 8884
+                    if (mqttPort == 8883 || mqttPort == 8884) {
+                        try {
+                            // Create a trust manager that accepts all certificates
+                            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+                            })
+                            
+                            // Create SSL context
+                            val sslContext = SSLContext.getInstance("TLS")
+                            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                            socketFactory = sslContext.socketFactory
+                            
+                            Log.d(TAG, "SSL/TLS configured for MQTT connection on port $mqttPort")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to configure SSL: ${e.message}", e)
+                        }
+                    }
                 }
                 Thread {
                     try {
-                        mqttClient?.connect(options)?.waitForCompletion()
-                        Log.d(TAG, "MQTT connected to $brokerUrl")
+                        Log.d(TAG, "Attempting MQTT connection to $brokerUrl with username: ${mqttUsername?.take(3)}***")
+                        val token = mqttClient?.connect(options)
+                        token?.waitForCompletion(15000) // 15 second timeout
+                        if (token?.isComplete == true && token.exception == null) {
+                            Log.d(TAG, "MQTT connected successfully to $brokerUrl")
+                        } else {
+                            val errorMsg = token?.exception?.message ?: "Unknown error"
+                            Log.e(TAG, "MQTT connection failed: $errorMsg")
+                            if (token?.exception != null) {
+                                Log.e(TAG, "Exception details:", token.exception)
+                            }
+                        }
                     } catch (e: Exception) {
-                        Log.e(TAG, "MQTT connect failed: ${e.message}")
+                        Log.e(TAG, "MQTT connect exception: ${e.message}", e)
                     }
                 }.start()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to init MQTT: ${e.message}")
+                Log.e(TAG, "Failed to init MQTT: ${e.message}", e)
             }
         }
 
@@ -962,32 +1058,101 @@ class TrackivaPlugin : FlutterPlugin, MethodCallHandler {
                 // Set icon from configuration or use default
                 val iconName = LocationForegroundService.getChatHeadIconName()
                 if (!iconName.isNullOrEmpty()) {
+                    var iconLoaded = false
                     try {
-                        // Try to get resource ID from name (e.g., "ic_launcher" or "drawable/ic_launcher")
-                        val resourceName = if (iconName.contains("/")) {
-                            iconName.split("/").last()
-                        } else {
-                            iconName
-                        }
-                        val resourceId = resources.getIdentifier(
+                        // Clean up icon name (remove path separators and extensions)
+                        val resourceName = iconName
+                            .replace("drawable/", "")
+                            .replace("mipmap/", "")
+                            .replace("assets/", "")
+                            .replace(".png", "")
+                            .replace(".jpg", "")
+                            .replace(".jpeg", "")
+                            .replace(".xml", "")
+                        
+                        // Try to load from drawable resources first
+                        var resourceId = resources.getIdentifier(
                             resourceName,
                             "drawable",
                             packageName
                         )
+                        
+                        // If not found in drawable, try mipmap (for app icons)
+                        if (resourceId == 0) {
+                            resourceId = resources.getIdentifier(
+                                resourceName,
+                                "mipmap",
+                                packageName
+                            )
+                        }
+                        
+                        // If found, use it
                         if (resourceId != 0) {
                             setImageResource(resourceId)
+                            iconLoaded = true
+                            if (LocationForegroundService.enableLogging) {
+                                Log.d(TAG, "Chat head icon loaded from resources: $resourceName")
+                            }
                         } else {
-                            // Fallback to default if resource not found
-                            Log.w(TAG, "Chat head icon '$iconName' not found, using default")
+                            // Try to load from assets folder
+                            try {
+                                val assetManager = assets
+                                val inputStream = assetManager.open(iconName)
+                                val drawable = android.graphics.drawable.BitmapDrawable(
+                                    resources,
+                                    android.graphics.BitmapFactory.decodeStream(inputStream)
+                                )
+                                setImageDrawable(drawable)
+                                iconLoaded = true
+                                if (LocationForegroundService.enableLogging) {
+                                    Log.d(TAG, "Chat head icon loaded from assets: $iconName")
+                                }
+                            } catch (assetException: Exception) {
+                                if (LocationForegroundService.enableLogging) {
+                                    Log.w(TAG, "Chat head icon not found in assets: $iconName")
+                                }
+                            }
+                        }
+                        
+                        // If still not loaded, try to use app icon as fallback
+                        if (!iconLoaded) {
+                            try {
+                                val appIcon = packageManager.getApplicationIcon(packageName)
+                                setImageDrawable(appIcon)
+                                iconLoaded = true
+                                if (LocationForegroundService.enableLogging) {
+                                    Log.d(TAG, "Using app icon as chat head icon")
+                                }
+                            } catch (e: Exception) {
+                                if (LocationForegroundService.enableLogging) {
+                                    Log.w(TAG, "Could not load app icon: ${e.message}")
+                                }
+                            }
+                        }
+                        
+                        // Final fallback to default icon
+                        if (!iconLoaded) {
+                            if (LocationForegroundService.enableLogging) {
+                                Log.w(TAG, "Chat head icon '$iconName' not found, using default")
+                            }
                             setImageResource(android.R.drawable.ic_menu_mylocation)
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error loading chat head icon: ${e.message}")
+                        Log.e(TAG, "Error loading chat head icon: ${e.message}", e)
                         setImageResource(android.R.drawable.ic_menu_mylocation)
                     }
                 } else {
-                    // Use default icon
-                    setImageResource(android.R.drawable.ic_menu_mylocation)
+                    // No icon specified, try to use app icon
+                    try {
+                        val appIcon = packageManager.getApplicationIcon(packageName)
+                        setImageDrawable(appIcon)
+                        if (LocationForegroundService.enableLogging) {
+                            Log.d(TAG, "Using app icon as chat head icon (no custom icon specified)")
+                        }
+                    } catch (e: Exception) {
+                        // Use default icon
+                        setImageResource(android.R.drawable.ic_menu_mylocation)
+                    }
                 }
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
                 
